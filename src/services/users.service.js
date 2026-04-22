@@ -26,6 +26,13 @@ export async function search(query, perPage = 15) {
   return data
 }
 
+export async function suggestions(perPage = 20, page = 1) {
+  const { data } = await api.get('/users/suggestions', {
+    params: { per_page: perPage, page },
+  })
+  return data
+}
+
 export async function getPostsByUser(userId, perPage = 15, page = 1) {
   const { data } = await api.get(`/users/${userId}/posts`, {
     params: { per_page: perPage, page },

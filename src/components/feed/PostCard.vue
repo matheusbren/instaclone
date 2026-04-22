@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import AppIcon from '@/components/layout/AppIcon.vue'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
 
@@ -42,7 +43,9 @@ const likeLabel = computed(() => {
 
 const commentLabel = computed(() => {
   const total = props.post.commentsCount ?? 0
-  return `${total} ${total === 1 ? 'comentário' : 'comentários'}`
+  return total > 0
+    ? `Ver todos os ${total} ${total === 1 ? 'comentário' : 'comentários'}`
+    : 'Seja o primeiro a comentar'
 })
 
 const publishedLabel = computed(() => {
@@ -56,7 +59,37 @@ const publishedLabel = computed(() => {
   }).format(new Date(props.post.createdAt))
 })
 
+const shortPublishedLabel = computed(() => {
+  if (!props.post.createdAt) {
+    return ''
+  }
+
+  const diffMs = Math.max(0, Date.now() - new Date(props.post.createdAt).getTime())
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+  const week = 7 * day
+
+  if (diffMs < hour) {
+    return `${Math.max(1, Math.floor(diffMs / minute))} min`
+  }
+
+  if (diffMs < day) {
+    return `${Math.floor(diffMs / hour)} h`
+  }
+
+  if (diffMs < week) {
+    return `${Math.floor(diffMs / day)} d`
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  }).format(new Date(props.post.createdAt))
+})
+
 const trimmedComment = computed(() => commentText.value.trim())
+const canLikePost = computed(() => !isOwnPost.value)
 
 function handleCommentSubmit() {
   if (!trimmedComment.value) {
@@ -85,12 +118,17 @@ function handleCommentSubmit() {
         />
 
         <span class="feed-post__author-meta">
-          <strong>{{ post.author.name }}</strong>
-          <span>@{{ post.author.username }}</span>
+          <strong>{{ post.author.username }}</strong>
+          <span>{{ post.author.name }}</span>
         </span>
       </RouterLink>
 
-      <time class="feed-post__date" :datetime="post.createdAt">{{ publishedLabel }}</time>
+      <div class="feed-post__header-side">
+        <time class="feed-post__date" :datetime="post.createdAt">{{ shortPublishedLabel }}</time>
+        <button class="feed-post__menu" type="button" aria-label="Mais opções">
+          <AppIcon name="more" />
+        </button>
+      </div>
     </header>
 
     <RouterLink :to="postLink" class="feed-post__media-link">
@@ -98,29 +136,48 @@ function handleCommentSubmit() {
     </RouterLink>
 
     <div class="feed-post__body">
-      <p class="feed-post__caption">
-        <RouterLink :to="authorLink" class="feed-post__caption-link">@{{ post.author.username }}</RouterLink>
+      <div class="feed-post__toolbar">
+        <div class="feed-post__toolbar-group">
+          <button
+            class="feed-post__icon-button"
+            :class="{ 'is-active': post.likedByMe }"
+            type="button"
+            :disabled="!canLikePost"
+            :aria-label="post.likedByMe ? 'Remover curtida' : 'Curtir post'"
+            @click="emit('toggle-like', post.id)"
+          >
+            <AppIcon name="heart" />
+          </button>
+
+          <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Abrir comentários">
+            <AppIcon name="comment" />
+          </RouterLink>
+
+          <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Abrir detalhes do post">
+            <AppIcon name="share" />
+          </RouterLink>
+        </div>
+
+        <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Salvar post">
+          <AppIcon name="save" />
+        </RouterLink>
+      </div>
+
+      <p class="feed-post__likes">{{ likeLabel }}</p>
+
+      <p v-if="post.caption" class="feed-post__caption">
+        <RouterLink :to="authorLink" class="feed-post__caption-link">
+          {{ post.author.username }}
+        </RouterLink>
         {{ post.caption }}
       </p>
 
-      <div class="feed-post__actions">
-        <button
-          v-if="!isOwnPost"
-          class="feed-post__action"
-          :class="{ 'is-active': post.likedByMe }"
-          type="button"
-          @click="emit('toggle-like', post.id)"
-        >
-          {{ post.likedByMe ? 'Descurtir' : 'Curtir' }}
-        </button>
-        <span>{{ likeLabel }}</span>
-        <RouterLink :to="postLink" class="feed-post__details-link">
-          {{ commentLabel }}
-        </RouterLink>
-        <RouterLink :to="postLink" class="feed-post__details-link">
-          Ver detalhes
-        </RouterLink>
-      </div>
+      <RouterLink v-if="post.commentsCount > 0" :to="postLink" class="feed-post__meta-link">
+        {{ commentLabel }}
+      </RouterLink>
+      <p v-else class="feed-post__meta-link">{{ commentLabel }}</p>
+
+      <time class="feed-post__timestamp" :datetime="post.createdAt">{{ publishedLabel }}</time>
 
       <form class="feed-post__comment-form" @submit.prevent="handleCommentSubmit">
         <input
@@ -128,10 +185,10 @@ function handleCommentSubmit() {
           class="feed-post__comment-input"
           type="text"
           maxlength="2200"
-          placeholder="Adicione um comentário"
+          placeholder="Adicione um comentário..."
         />
         <button class="feed-post__submit" type="submit" :disabled="!trimmedComment">
-          Enviar
+          Publicar
         </button>
       </form>
     </div>
@@ -141,26 +198,26 @@ function handleCommentSubmit() {
 <style scoped>
 .feed-post {
   overflow: hidden;
-  border-radius: 1.75rem;
-  background: rgba(255, 255, 255, 0.96);
+  border-radius: 0.9rem;
+  background: var(--app-surface);
 }
 
 .feed-post__header,
 .feed-post__body {
-  padding: 1.1rem 1.1rem 0;
+  padding: 0.9rem 1rem 0;
 }
 
 .feed-post__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .feed-post__author {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
   min-width: 0;
   color: inherit;
   text-decoration: none;
@@ -171,30 +228,37 @@ function handleCommentSubmit() {
   min-width: 0;
 }
 
-.feed-post__author-meta strong,
-.feed-post__author-meta span,
-.feed-post__date,
-.feed-post__actions span {
-  color: var(--app-muted);
-}
-
 .feed-post__author-meta strong {
   color: var(--app-text);
+  font-size: 0.92rem;
 }
 
 .feed-post__author-meta span,
 .feed-post__date,
-.feed-post__actions span {
-  font-size: 0.94rem;
+.feed-post__timestamp {
+  color: var(--app-muted);
+  font-size: 0.78rem;
 }
 
-.feed-post__date {
-  white-space: nowrap;
+.feed-post__header-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.feed-post__menu {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  color: var(--app-text);
+  background: none;
 }
 
 .feed-post__media-link {
   display: block;
-  margin-top: 1rem;
 }
 
 .feed-post__media {
@@ -202,119 +266,124 @@ function handleCommentSubmit() {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--app-surface-soft);
 }
 
 .feed-post__body {
-  padding-bottom: 1.1rem;
+  padding-bottom: 0;
+}
+
+.feed-post__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.feed-post__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.feed-post__icon-button {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: 0;
+  color: var(--app-text);
+  background: none;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.feed-post__icon-button:hover,
+.feed-post__icon-button:focus-visible,
+.feed-post__menu:hover,
+.feed-post__menu:focus-visible {
+  color: var(--app-muted);
+}
+
+.feed-post__icon-button.is-active {
+  color: var(--app-danger);
+}
+
+.feed-post__icon-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.feed-post__likes {
+  margin: 0 0 0.55rem;
+  color: var(--app-text);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .feed-post__caption {
-  margin: 0 0 1rem;
-  line-height: 1.7;
+  margin: 0 0 0.45rem;
+  color: var(--app-text);
+  line-height: 1.65;
   white-space: pre-line;
 }
 
 .feed-post__caption-link {
-  margin-right: 0.45rem;
-  color: var(--app-accent-strong);
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.feed-post__details-link {
-  color: var(--app-accent-strong);
+  margin-right: 0.35rem;
+  color: var(--app-text);
   font-weight: 700;
   text-decoration: none;
 }
 
-.feed-post__details-link:hover,
-.feed-post__details-link:focus-visible {
-  text-decoration: underline;
+.feed-post__meta-link {
+  margin: 0 0 0.45rem;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  text-decoration: none;
 }
 
-.feed-post__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.feed-post__action,
-.feed-post__submit {
-  border: 0;
-  border-radius: 999px;
-  font-weight: 800;
-  transition:
-    transform 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.feed-post__action {
-  padding: 0.65rem 1rem;
-  color: var(--app-accent-strong);
-  background: var(--app-accent-soft);
-}
-
-.feed-post__action.is-active,
-.feed-post__action:hover,
-.feed-post__action:focus-visible,
-.feed-post__submit:hover,
-.feed-post__submit:focus-visible {
-  color: #fff;
-  background: linear-gradient(135deg, var(--app-accent) 0%, #ff8c4a 100%);
-  box-shadow: 0 14px 24px rgba(240, 90, 40, 0.22);
-  transform: translateY(-1px);
+.feed-post__timestamp {
+  display: block;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .feed-post__comment-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
+  margin: 0 -1rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--app-border);
 }
 
 .feed-post__comment-input {
-  width: 100%;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(122, 101, 91, 0.2);
-  border-radius: 1rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
   color: var(--app-text);
-  background: rgba(255, 255, 255, 0.92);
+  background: transparent;
 }
 
 .feed-post__comment-input:focus-visible {
-  outline: 2px solid rgba(240, 90, 40, 0.18);
-  border-color: rgba(240, 90, 40, 0.45);
+  outline: none;
 }
 
 .feed-post__submit {
-  min-width: 6.75rem;
-  padding: 0.85rem 1rem;
-  color: #fff;
-  background: linear-gradient(135deg, var(--app-accent-strong) 0%, var(--app-accent) 100%);
+  padding: 0;
+  border: 0;
+  color: var(--app-link);
+  background: none;
+  font-weight: 700;
 }
 
 .feed-post__submit:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
-  box-shadow: none;
-}
-
-@media (max-width: 575.98px) {
-  .feed-post__header {
-    align-items: flex-start;
-  }
-
-  .feed-post__comment-form {
-    grid-template-columns: 1fr;
-  }
-
-  .feed-post__submit {
-    width: 100%;
-  }
+  opacity: 0.45;
 }
 </style>

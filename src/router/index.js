@@ -7,6 +7,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 
 import FeedView from '@/views/app/FeedView.vue'
 import CreatePostView from '@/views/app/CreatePostView.vue'
+import DiscoverView from '@/views/app/DiscoverView.vue'
 import PostDetailsView from '@/views/app/PostDetailsView.vue'
 import ProfileView from '@/views/app/ProfileView.vue'
 import EditProfileView from '@/views/app/EditProfileView.vue'
@@ -62,6 +63,17 @@ const routes = [
           sectionTitle: 'Criar Post',
           sectionDescription: 'Prepare uploads, legendas e feedbacks visuais dentro de um fluxo simples.',
           footerLabel: 'Área pronta para preview de imagem, formulário e estados de publicação.',
+        },
+      },
+      {
+        path: 'descobrir',
+        name: 'descobrir',
+        component: DiscoverView,
+        meta: {
+          navItem: 'descobrir',
+          sectionTitle: 'Descobrir Pessoas',
+          sectionDescription: 'Explore todos os perfis da rede e comece a seguir quem você ainda não conhece.',
+          footerLabel: 'Lista completa de usuários com ação de seguir direto do card.',
         },
       },
       {

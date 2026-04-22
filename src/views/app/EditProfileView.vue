@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
 .edit-profile__form {
   padding: 1.4rem;
   border-radius: 1.75rem;
-  background: rgba(255, 252, 248, 0.9);
+  background: var(--app-surface);
 }
 
 .edit-profile__hero {
@@ -380,13 +380,13 @@ onBeforeUnmount(() => {
 }
 
 .edit-profile__feedback.is-error {
-  color: #9b2c2c;
-  background: rgba(255, 240, 240, 0.92);
+  color: #ffb4ba;
+  background: rgba(255, 48, 64, 0.08);
 }
 
 .edit-profile__feedback.is-success {
-  color: #23633f;
-  background: rgba(237, 252, 241, 0.95);
+  color: #9ff0c7;
+  background: rgba(66, 211, 146, 0.08);
 }
 
 .edit-profile__grid {
@@ -420,7 +420,7 @@ onBeforeUnmount(() => {
   gap: 0.2rem;
   padding: 1rem;
   border-radius: 1.2rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-surface-soft);
 }
 
 .edit-profile__form {

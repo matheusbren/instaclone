@@ -1,13 +1,14 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import AppIcon from '@/components/layout/AppIcon.vue'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
 import { useAuth } from '@/composables/useAuth'
-import * as usersService from '@/services/users.service'
-import * as followsService from '@/services/follows.service'
 import { extractErrorMessage } from '@/services/api'
-import { normalizeUser } from '@/stores/profileUtils'
+import * as followsService from '@/services/follows.service'
+import * as usersService from '@/services/users.service'
 import { normalizePost } from '@/stores/feed'
+import { normalizeUser } from '@/stores/profileUtils'
 
 const route = useRoute()
 const { currentUser } = useAuth()
@@ -40,13 +41,6 @@ const followButtonLabel = computed(() =>
   isFollowedByViewer.value ? 'Deixar de seguir' : 'Seguir perfil',
 )
 
-const postSectionTitle = computed(() => {
-  if (!profile.value) {
-    return ''
-  }
-  return isOwnProfile.value ? 'Seus posts' : `Posts de @${profile.value.username}`
-})
-
 const connectionsQuery = computed(() => {
   if (!profile.value || isOwnProfile.value) {
     return {}
@@ -56,13 +50,19 @@ const connectionsQuery = computed(() => {
 
 const followersPreview = computed(() => followersList.value.slice(0, 4))
 const followingPreview = computed(() => followingList.value.slice(0, 4))
-
-function getProfileLink(username) {
-  if (currentUser.value?.username === username) {
-    return { name: 'perfil' }
-  }
-  return { name: 'perfil', query: { user: username } }
-}
+const followersRoute = computed(() => ({
+  name: 'perfil-lista',
+  params: { type: 'seguidores' },
+  query: connectionsQuery.value,
+}))
+const followingRoute = computed(() => ({
+  name: 'perfil-lista',
+  params: { type: 'seguindo' },
+  query: connectionsQuery.value,
+}))
+const secondaryActionLabel = computed(() =>
+  isOwnProfile.value ? 'Ver conexões' : 'Ver seguidores',
+)
 
 async function loadProfile() {
   isLoading.value = true
@@ -167,17 +167,13 @@ watch(
 </script>
 
 <template>
-  <section v-if="isLoading && !profile" class="card border-0 shadow-sm">
-    <div class="card-body p-4">
-      <p class="mb-0 text-body-secondary">Carregando perfil...</p>
-    </div>
+  <section v-if="isLoading && !profile" class="profile-view__state card border-0">
+    <p class="mb-0 text-body-secondary">Carregando perfil...</p>
   </section>
 
-  <section v-else-if="loadError" class="card border-0 shadow-sm">
-    <div class="card-body p-4">
-      <h2 class="h4 mb-3">Perfil indisponível</h2>
-      <p class="text-body-secondary mb-0">{{ loadError }}</p>
-    </div>
+  <section v-else-if="loadError" class="profile-view__state card border-0">
+    <h2 class="h4 mb-3">Perfil indisponível</h2>
+    <p class="text-body-secondary mb-0">{{ loadError }}</p>
   </section>
 
   <section v-else-if="profile" class="profile-view">
@@ -185,8 +181,8 @@ watch(
       {{ feedbackMessage }}
     </p>
 
-    <section class="profile-hero card border-0">
-      <div class="profile-hero__identity">
+    <section class="profile-header">
+      <div class="profile-header__avatar">
         <ProfileAvatar
           :name="profile.name"
           :username="profile.username"
@@ -194,211 +190,172 @@ watch(
           :colors="profile.colors"
           size="xl"
         />
-
-        <div class="profile-hero__copy">
-          <span class="profile-hero__eyebrow">
-            {{ isOwnProfile ? 'Seu espaço pessoal' : 'Perfil acessado pelo feed' }}
-          </span>
-          <h2>{{ profile.name }}</h2>
-          <p class="profile-hero__username">@{{ profile.username }}</p>
-          <p v-if="profile.bio">{{ profile.bio }}</p>
-        </div>
       </div>
 
-      <div class="profile-hero__actions">
-        <RouterLink
-          v-if="isOwnProfile"
-          class="btn btn-primary"
-          :to="{ name: 'perfil-editar' }"
-        >
-          Editar perfil
-        </RouterLink>
-
-        <button
-          v-else
-          class="btn"
-          :class="isFollowedByViewer ? 'btn-outline-secondary' : 'btn-primary'"
-          type="button"
-          :disabled="followPending"
-          @click="handleToggleFollow"
-        >
-          {{ followButtonLabel }}
-        </button>
-
-        <RouterLink class="btn btn-outline-secondary" :to="{ name: 'feed' }">
-          Voltar para o feed
-        </RouterLink>
-      </div>
-
-      <div class="profile-hero__stats">
-        <article>
-          <strong>{{ postsCount }}</strong>
-          <span>posts</span>
-        </article>
-
-        <RouterLink
-          class="profile-hero__stat-link"
-          :to="{
-            name: 'perfil-lista',
-            params: { type: 'seguidores' },
-            query: connectionsQuery,
-          }"
-        >
-          <strong>{{ followersCount }}</strong>
-          <span>seguidores</span>
-        </RouterLink>
-
-        <RouterLink
-          class="profile-hero__stat-link"
-          :to="{
-            name: 'perfil-lista',
-            params: { type: 'seguindo' },
-            query: connectionsQuery,
-          }"
-        >
-          <strong>{{ followingCount }}</strong>
-          <span>seguindo</span>
-        </RouterLink>
-      </div>
-    </section>
-
-    <section class="profile-connections">
-      <article class="profile-connections__card card border-0">
-        <div class="profile-connections__head">
-          <div>
-            <span class="profile-connections__eyebrow">Seguidores</span>
-            <h3>{{ followersCount }} pessoas acompanham este perfil</h3>
-          </div>
-
-          <RouterLink
-            class="btn btn-outline-secondary btn-sm"
-            :to="{
-              name: 'perfil-lista',
-              params: { type: 'seguidores' },
-              query: connectionsQuery,
-            }"
-          >
-            Ver lista
-          </RouterLink>
-        </div>
-
-        <ul v-if="followersPreview.length > 0" class="profile-connections__list">
-          <li v-for="account in followersPreview" :key="account.id">
-            <RouterLink :to="getProfileLink(account.username)" class="profile-connections__item">
-              <ProfileAvatar
-                :name="account.name"
-                :username="account.username"
-                :avatar-url="account.avatarUrl"
-                :colors="account.colors"
-                size="sm"
-              />
-              <span>
-                <strong>{{ account.name }}</strong>
-                <small>@{{ account.username }}</small>
-              </span>
-            </RouterLink>
-          </li>
-        </ul>
-
-        <p v-else class="profile-connections__empty">
-          Nenhum seguidor ainda. Conforme as relações crescerem, a lista aparece aqui.
-        </p>
-      </article>
-
-      <article class="profile-connections__card card border-0">
-        <div class="profile-connections__head">
-          <div>
-            <span class="profile-connections__eyebrow">Seguindo</span>
-            <h3>{{ followingCount }} perfis no radar</h3>
-          </div>
-
-          <RouterLink
-            class="btn btn-outline-secondary btn-sm"
-            :to="{
-              name: 'perfil-lista',
-              params: { type: 'seguindo' },
-              query: connectionsQuery,
-            }"
-          >
-            Ver lista
-          </RouterLink>
-        </div>
-
-        <ul v-if="followingPreview.length > 0" class="profile-connections__list">
-          <li v-for="account in followingPreview" :key="account.id">
-            <RouterLink :to="getProfileLink(account.username)" class="profile-connections__item">
-              <ProfileAvatar
-                :name="account.name"
-                :username="account.username"
-                :avatar-url="account.avatarUrl"
-                :colors="account.colors"
-                size="sm"
-              />
-              <span>
-                <strong>{{ account.name }}</strong>
-                <small>@{{ account.username }}</small>
-              </span>
-            </RouterLink>
-          </li>
-        </ul>
-
-        <p v-else class="profile-connections__empty">
-          Este perfil ainda não segue ninguém. Assim que seguir contas, elas aparecem aqui.
-        </p>
-      </article>
-    </section>
-
-    <section class="profile-posts">
-      <div class="profile-posts__head">
-        <div>
-          <span class="profile-connections__eyebrow">Grade de posts</span>
-          <h3>{{ postSectionTitle }}</h3>
-        </div>
-        <span class="profile-posts__count">{{ postsCount }} itens</span>
-      </div>
-
-      <div v-if="postsList.length > 0" class="profile-posts__grid">
-        <article v-for="post in postsList" :key="post.id" class="profile-post-card card border-0">
-          <RouterLink
-            :to="{ name: 'post-detalhes', params: { postId: post.id } }"
-            class="profile-post-card__media-link"
-          >
-            <img :src="post.imageUrl" :alt="post.imageAlt" loading="lazy" />
-          </RouterLink>
-
-          <div class="profile-post-card__body">
-            <p v-if="post.caption">{{ post.caption }}</p>
-
-            <div class="profile-post-card__meta">
-              <span>{{ post.likesCount }} curtidas</span>
-              <span>{{ post.commentsCount }} comentários</span>
-            </div>
+      <div class="profile-header__content">
+        <div class="profile-header__identity">
+          <div class="profile-header__title-row">
+            <h1>{{ profile.username }}</h1>
 
             <RouterLink
-              :to="{ name: 'post-detalhes', params: { postId: post.id } }"
-              class="profile-post-card__link"
+              v-if="isOwnProfile"
+              class="profile-header__settings"
+              :to="{ name: 'perfil-editar' }"
+              aria-label="Editar configurações do perfil"
             >
-              Abrir post
+              <AppIcon name="settings" />
             </RouterLink>
           </div>
-        </article>
-      </div>
 
-      <section v-else class="profile-posts__empty card border-0">
-        <h3>Nenhum post por aqui ainda</h3>
-        <p>
-          {{ isOwnProfile
-            ? 'Publique algo para preencher sua grade e mostrar atividade no perfil.'
-            : 'Quando este usuário publicar, a grade começa a aparecer aqui.' }}
-        </p>
-        <RouterLink
-          v-if="isOwnProfile"
-          class="btn btn-primary align-self-start"
-          :to="{ name: 'criar' }"
-        >
-          Criar primeiro post
-        </RouterLink>
-      </section>
+          <div class="profile-header__actions">
+            <RouterLink
+              v-if="isOwnProfile"
+              class="btn btn-outline-secondary"
+              :to="{ name: 'perfil-editar' }"
+            >
+              Editar perfil
+            </RouterLink>
+
+            <button
+              v-else
+              class="btn btn-outline-secondary"
+              type="button"
+              :disabled="followPending"
+              @click="handleToggleFollow"
+            >
+              {{ followButtonLabel }}
+            </button>
+
+            <RouterLink class="btn btn-outline-secondary" :to="followersRoute">
+              {{ secondaryActionLabel }}
+            </RouterLink>
+          </div>
+        </div>
+
+        <div class="profile-header__stats">
+          <article>
+            <strong>{{ postsCount }}</strong>
+            <span>publicações</span>
+          </article>
+
+          <RouterLink class="profile-header__stat-link" :to="followersRoute">
+            <strong>{{ followersCount }}</strong>
+            <span>seguidores</span>
+          </RouterLink>
+
+          <RouterLink class="profile-header__stat-link" :to="followingRoute">
+            <strong>{{ followingCount }}</strong>
+            <span>seguindo</span>
+          </RouterLink>
+        </div>
+
+        <div class="profile-header__bio">
+          <strong>{{ profile.name }}</strong>
+          <p v-if="profile.bio">{{ profile.bio }}</p>
+          <p v-else class="profile-header__bio-muted">
+            {{ isOwnProfile
+              ? 'Adicione uma bio para completar seu perfil.'
+              : 'Este perfil ainda não escreveu uma bio.' }}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-summary">
+      <RouterLink class="profile-summary__card" :to="followersRoute">
+        <div class="profile-summary__avatars">
+          <ProfileAvatar
+            v-for="account in followersPreview"
+            :key="`followers-${account.id}`"
+            :name="account.name"
+            :username="account.username"
+            :avatar-url="account.avatarUrl"
+            :colors="account.colors"
+            size="sm"
+            class="profile-summary__avatar"
+          />
+          <span v-if="followersPreview.length === 0" class="profile-summary__placeholder">
+            <AppIcon name="profile" />
+          </span>
+        </div>
+
+        <div class="profile-summary__copy">
+          <span>Seguidores</span>
+          <strong>{{ followersCount }} pessoas acompanham este perfil</strong>
+        </div>
+      </RouterLink>
+
+      <RouterLink class="profile-summary__card" :to="followingRoute">
+        <div class="profile-summary__avatars">
+          <ProfileAvatar
+            v-for="account in followingPreview"
+            :key="`following-${account.id}`"
+            :name="account.name"
+            :username="account.username"
+            :avatar-url="account.avatarUrl"
+            :colors="account.colors"
+            size="sm"
+            class="profile-summary__avatar"
+          />
+          <span v-if="followingPreview.length === 0" class="profile-summary__placeholder">
+            <AppIcon name="discover" />
+          </span>
+        </div>
+
+        <div class="profile-summary__copy">
+          <span>Seguindo</span>
+          <strong>{{ followingCount }} contas no radar</strong>
+        </div>
+      </RouterLink>
+    </section>
+
+    <nav class="profile-tabs" aria-label="Seções do perfil">
+      <span class="profile-tabs__item is-active">
+        <AppIcon name="grid" />
+        <span>Publicações</span>
+      </span>
+
+      <RouterLink class="profile-tabs__item" :to="followersRoute">
+        <AppIcon name="profile" />
+        <span>Seguidores</span>
+      </RouterLink>
+
+      <RouterLink class="profile-tabs__item" :to="followingRoute">
+        <AppIcon name="discover" />
+        <span>Seguindo</span>
+      </RouterLink>
+    </nav>
+
+    <section v-if="postsList.length > 0" class="profile-grid">
+      <RouterLink
+        v-for="post in postsList"
+        :key="post.id"
+        :to="{ name: 'post-detalhes', params: { postId: post.id } }"
+        class="profile-grid__item"
+      >
+        <img :src="post.imageUrl" :alt="post.imageAlt" loading="lazy" />
+
+        <div class="profile-grid__overlay">
+          <span>{{ post.likesCount }} curtidas</span>
+          <span>{{ post.commentsCount }} comentários</span>
+        </div>
+      </RouterLink>
+    </section>
+
+    <section v-else class="profile-empty card border-0">
+      <h3>Nenhum post por aqui ainda</h3>
+      <p>
+        {{ isOwnProfile
+          ? 'Publique algo para preencher sua grade e mostrar atividade no perfil.'
+          : 'Quando este usuário publicar, a grade começa a aparecer aqui.' }}
+      </p>
+      <RouterLink
+        v-if="isOwnProfile"
+        class="btn btn-primary align-self-start"
+        :to="{ name: 'criar' }"
+      >
+        Criar primeiro post
+      </RouterLink>
     </section>
   </section>
 </template>
@@ -406,259 +363,262 @@ watch(
 <style scoped>
 .profile-view {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
+}
+
+.profile-view__state,
+.profile-empty {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: var(--app-surface);
 }
 
 .profile-view__feedback {
   margin: 0;
-  padding: 0.95rem 1rem;
-  border: 1px solid rgba(240, 90, 40, 0.14);
-  border-radius: 1rem;
-  color: var(--app-accent-strong);
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.84);
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.85rem;
+  color: var(--app-text);
+  font-weight: 600;
+  background: var(--app-surface-soft);
 }
 
-.profile-hero,
-.profile-connections__card,
-.profile-post-card,
-.profile-posts__empty {
-  padding: 1.4rem;
-  border-radius: 1.75rem;
-  background: rgba(255, 252, 248, 0.9);
-}
-
-.profile-hero {
+.profile-header {
   display: grid;
-  gap: 1.2rem;
+  gap: 1.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--app-border);
 }
 
-.profile-hero__identity {
-  display: grid;
-  gap: 1rem;
-}
-
-.profile-hero__copy h2,
-.profile-connections__head h3,
-.profile-posts__head h3,
-.profile-posts__empty h3 {
-  margin: 0 0 0.25rem;
-  font-size: clamp(1.6rem, 4vw, 2.35rem);
-  font-weight: 800;
-}
-
-.profile-hero__copy p,
-.profile-connections__head h3,
-.profile-connections__empty,
-.profile-post-card__body p,
-.profile-posts__empty p {
-  margin: 0;
-}
-
-.profile-hero__copy p,
-.profile-hero__username,
-.profile-connections__empty,
-.profile-post-card__meta span,
-.profile-posts__count,
-.profile-posts__empty p {
-  color: var(--app-muted);
-  line-height: 1.65;
-}
-
-.profile-hero__eyebrow,
-.profile-connections__eyebrow {
-  display: inline-block;
-  margin-bottom: 0.35rem;
-  color: var(--app-accent-strong);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.profile-hero__actions {
+.profile-header__avatar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  justify-content: center;
 }
 
-.profile-hero__stats {
+.profile-header__content,
+.profile-header__identity,
+.profile-header__bio,
+.profile-summary__copy {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.45rem;
 }
 
-.profile-hero__stats article,
-.profile-hero__stat-link {
-  display: grid;
-  gap: 0.15rem;
-  padding: 1rem;
-  border-radius: 1.2rem;
-  color: inherit;
-  text-decoration: none;
-  background: rgba(255, 255, 255, 0.74);
-}
-
-.profile-hero__stats strong {
-  font-size: 1.25rem;
-}
-
-.profile-hero__stats span {
-  color: var(--app-muted);
-}
-
-.profile-connections {
-  display: grid;
-  gap: 1rem;
-}
-
-.profile-connections__card {
-  display: grid;
-  gap: 1rem;
-}
-
-.profile-connections__head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.profile-connections__head h3 {
-  font-size: 1.1rem;
-}
-
-.profile-connections__list {
-  display: grid;
-  gap: 0.85rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.profile-connections__item {
+.profile-header__title-row,
+.profile-header__actions {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.profile-header__title-row h1 {
+  margin: 0;
+  color: var(--app-text);
+  font-size: clamp(1.7rem, 4vw, 2.1rem);
+  font-weight: 600;
+}
+
+.profile-header__settings {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  color: var(--app-text);
+  background: var(--app-surface-soft);
+  text-decoration: none;
+}
+
+.profile-header__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.profile-header__stats article,
+.profile-header__stat-link {
+  display: grid;
+  gap: 0.2rem;
   color: inherit;
   text-decoration: none;
 }
 
-.profile-connections__item span {
-  display: grid;
-  gap: 0.05rem;
+.profile-header__stats strong {
+  color: var(--app-text);
+  font-size: 1.12rem;
 }
 
-.profile-connections__item strong {
+.profile-header__stats span,
+.profile-header__bio p,
+.profile-header__bio-muted,
+.profile-summary__copy span,
+.profile-empty p {
+  color: var(--app-muted);
+  line-height: 1.7;
+}
+
+.profile-header__bio strong {
+  color: var(--app-text);
   font-size: 0.98rem;
 }
 
-.profile-connections__item small {
-  color: var(--app-muted);
-  font-size: 0.9rem;
-}
-
-.profile-posts {
+.profile-summary {
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
-.profile-posts__head {
+.profile-summary__card {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: end;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  color: inherit;
+  text-decoration: none;
+  background: var(--app-surface);
 }
 
-.profile-posts__head h3 {
-  font-size: 1.25rem;
+.profile-summary__avatars {
+  display: flex;
+  align-items: center;
+  min-width: 7rem;
 }
 
-.profile-posts__count {
-  font-weight: 700;
+.profile-summary__avatar + .profile-summary__avatar {
+  margin-left: -0.55rem;
 }
 
-.profile-posts__grid {
+.profile-summary__placeholder {
   display: grid;
-  gap: 1rem;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px solid var(--app-border);
+  border-radius: 50%;
+  color: var(--app-muted);
+  background: var(--app-surface-soft);
 }
 
-.profile-post-card {
+.profile-summary__copy strong {
+  color: var(--app-text);
+  font-size: 0.95rem;
+}
+
+.profile-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--app-border);
+}
+
+.profile-tabs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 1rem;
+  margin-top: -1rem;
+  border-top: 1px solid transparent;
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.profile-tabs__item.is-active {
+  border-top-color: var(--app-text);
+  color: var(--app-text);
+}
+
+.profile-grid {
+  display: grid;
+  gap: 0.2rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-grid__item {
+  position: relative;
+  display: block;
   overflow: hidden;
-  padding: 0;
+  aspect-ratio: 1 / 1;
+  color: inherit;
+  text-decoration: none;
+  background: var(--app-surface-soft);
 }
 
-.profile-post-card img {
+.profile-grid__item img {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   object-fit: cover;
 }
 
-.profile-post-card__media-link,
-.profile-post-card__link {
-  text-decoration: none;
-}
-
-.profile-post-card__body {
-  display: grid;
-  gap: 0.9rem;
-  padding: 1rem;
-}
-
-.profile-post-card__meta {
+.profile-grid__overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  font-size: 0.94rem;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 1rem;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.74) 100%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.profile-grid__item:hover .profile-grid__overlay,
+.profile-grid__item:focus-visible .profile-grid__overlay {
+  opacity: 1;
+}
+
+.profile-empty {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.profile-empty h3 {
+  margin: 0;
+  font-size: 1.35rem;
   font-weight: 700;
 }
 
-.profile-post-card__link {
-  color: var(--app-accent-strong);
-  font-weight: 800;
-}
-
-.profile-post-card__link:hover,
-.profile-post-card__link:focus-visible {
-  text-decoration: underline;
-}
-
-.profile-posts__empty {
-  display: grid;
-  gap: 0.75rem;
+.profile-empty p {
+  margin: 0;
 }
 
 @media (min-width: 768px) {
-  .profile-hero__identity {
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
+  .profile-header {
+    grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 1.2fr);
+    align-items: start;
   }
 
-  .profile-hero__stats,
-  .profile-connections,
-  .profile-posts__grid {
+  .profile-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1100px) {
-  .profile-hero {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
-    align-items: start;
+@media (max-width: 767.98px) {
+  .profile-tabs {
+    gap: 0.85rem;
+    overflow-x: auto;
+    justify-content: flex-start;
   }
 
-  .profile-hero__identity {
-    grid-column: 1;
-  }
-
-  .profile-hero__actions,
-  .profile-hero__stats {
-    grid-column: 2;
-  }
-
-  .profile-posts__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .profile-grid__overlay {
+    opacity: 1;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.78rem;
   }
 }
 </style>

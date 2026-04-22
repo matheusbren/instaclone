@@ -279,7 +279,7 @@ watch(listType, () => {
 .profile-list__empty {
   padding: 1.4rem;
   border-radius: 1.75rem;
-  background: rgba(255, 252, 248, 0.9);
+  background: var(--app-surface);
 }
 
 .profile-list__hero {
@@ -316,11 +316,11 @@ watch(listType, () => {
 .profile-list__feedback {
   margin: 0;
   padding: 0.95rem 1rem;
-  border: 1px solid rgba(240, 90, 40, 0.14);
+  border: 1px solid var(--app-border);
   border-radius: 1rem;
-  color: var(--app-accent-strong);
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.84);
+  color: var(--app-text);
+  font-weight: 600;
+  background: var(--app-surface-soft);
 }
 
 .profile-list__grid {
@@ -358,7 +358,7 @@ watch(listType, () => {
   padding: 0.7rem 1rem;
   border-radius: 999px;
   font-weight: 800;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--app-surface-soft);
 }
 
 .profile-list__more {

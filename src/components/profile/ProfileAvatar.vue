@@ -25,10 +25,10 @@ const props = defineProps({
 })
 
 const sizeMap = {
-  sm: '2.75rem',
-  md: '3.25rem',
-  lg: '5.75rem',
-  xl: '7rem',
+  sm: '2.2rem',
+  md: '2.85rem',
+  lg: '5.25rem',
+  xl: '8rem',
 }
 
 const initials = computed(() => {
@@ -71,10 +71,12 @@ const avatarStyle = computed(() => {
   height: var(--avatar-size);
   overflow: hidden;
   border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.05em;
   flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 .profile-avatar img {

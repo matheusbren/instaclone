@@ -1,98 +1,168 @@
-# 📸 InstaClone — Frontend (Vue.js 3)
+# InstaClone - Frontend (Vue 3)
 
-## Visão Geral
+## Visao Geral
 
-O InstaClone é uma rede social inspirada no Instagram, construída como projeto final da disciplina. Este repositório contém o frontend do projeto: uma SPA (Single Page Application) construída com Vue.js 3, Vue Router, Pinia e axios, totalmente integrada com a API Laravel/Sanctum descrita no diretório `backend/`.
+Este diretorio contem a SPA do InstaClone, escrita em Vue 3 com Vite. O app e dividido entre uma area autenticada e uma area de visitante, consome a API via Bearer token, persiste apenas o `access_token` no `localStorage` e reidrata o usuario atual com `GET /auth/me` ao entrar nas rotas protegidas.
 
-Toda a persistência é feita pelo backend. O frontend mantém apenas o token de acesso no `localStorage` para hidratar a sessão entre recargas.
+Hoje o frontend ja entrega os fluxos de:
+
+- autenticacao (`/login`, `/cadastro`)
+- feed (`/feed`)
+- descoberta de perfis (`/descobrir`)
+- criacao de post (`/criar`)
+- perfil proprio e de terceiros (`/perfil` e `?user=<username>`)
+- edicao de perfil (`/perfil/editar`)
+- listas de seguidores/seguindo (`/perfil/lista/:type`)
+- detalhes do post (`/posts/:postId`)
+- fallback 404
 
 ## Stack
 
-- **Vue 3** com `<script setup>` e Composition API.
-- **Vue Router** com guards de rota (`requiresAuth`, `requiresGuest`).
-- **Pinia** para estado global (`auth`, `feed`).
-- **axios** como cliente HTTP, com interceptors de token Bearer e tratamento de 401.
-- **Bootstrap 5** + `theme.css` próprio para estilos base.
-- **Vite** para build e dev server.
+- Vue 3 com Composition API e `<script setup>`
+- Vue Router 4 com guards `requiresAuth` e `requiresGuest`
+- Pinia para os stores `auth` e `feed`
+- axios com interceptor de token Bearer e limpeza de sessao em `401`
+- Bootstrap 5 + tema proprio em `src/assets/styles/theme.css`
+- Vite 8
+
+`package.json` exige Node `^20.19.0 || >=22.12.0`.
 
 ## Estrutura
 
-```
+```text
 src/
-  assets/styles/         tema global e overrides
-  components/            componentes reutilizáveis (feed, layout, profile)
-  composables/           hooks finos sobre os stores (useAuth, useFeed)
-  layouts/               AppLayout (área autenticada) e AuthLayout
-  router/                definição de rotas e guards
-  services/              cliente axios + wrappers por recurso (auth, users, posts, feed, follows, likes, comments, notifications — os dois últimos ficam prontos para consumo mesmo sem tela dedicada)
-  stores/                stores Pinia + helpers de normalização
-  views/                 páginas (auth/*, app/*, NotFoundView)
+  assets/styles/   tema global
+  components/      UI reutilizavel (layout, feed, profile)
+  composables/     useAuth e useFeed
+  layouts/         AppLayout e AuthLayout
+  router/          rotas e guards
+  services/        cliente axios + wrappers por recurso
+  stores/          auth, feed e helpers de normalizacao
+  views/           telas de auth, app e 404
 ```
 
-## Integração com o backend
+## Comportamento Atual
 
-O cliente HTTP (`src/services/api.js`) é uma instância do axios apontando para `VITE_API_URL` (default `http://localhost:8000/api`). Um interceptor de requisição injeta o token Bearer vindo do store `auth`; um interceptor de resposta limpa a sessão ao receber `401 Unauthorized`. Cada recurso tem um módulo dedicado em `src/services/*.service.js` que encapsula as rotas correspondentes da API.
+### Autenticacao
 
-### Configuração
+- `POST /auth/login` e `POST /auth/register` criam sessao e atualizam o store `auth`
+- `POST /auth/logout` limpa a sessao local mesmo se o token ja estiver invalido
+- `GET /auth/me` hidrata o usuario autenticado a partir do token salvo
+- o router redireciona visitantes para `/login` e usuarios autenticados para `/feed`
+
+O modulo `auth.service.js` tambem expoe `refresh()`, mas a UI atual nao usa esse endpoint.
+
+### Layout Principal
+
+O shell autenticado usa:
+
+- navegacao inferior no mobile e lateral no desktop
+- quatro entradas principais: `Home`, `Descobrir`, `Criar` e `Perfil`
+- `AppShell` com slots `sidebar`, `header`, `default` e `footer`
+- `<RouterView v-slot="{ Component }">` com `<component :is="Component" />` no `AppLayout`
+
+### Feed
+
+- carrega posts com `GET /feed` usando cursor pagination (`next_cursor`)
+- o store `feed` normaliza os posts e centraliza `fetchFeed`, `loadMoreFeed`, `toggleLike`, `addComment` e `createPost`
+- cada card mostra autor, imagem, legenda, data, total de curtidas e total de comentarios
+- comentarios inline sao enviados por `POST /posts/:id/comments`
+- curtidas usam `POST /posts/:id/like` e `DELETE /posts/:id/unlike`
+
+### Descobrir
+
+- a tela usa `GET /users/suggestions` para listar perfis sugeridos
+- o estado de relacionamento do viewer e montado a partir de `GET /users/:id/following`
+- seguir/deixar de seguir usa `POST /users/:id/follow` e `DELETE /users/:id/unfollow`
+
+### Criar Post
+
+- aceita `image/jpeg`, `image/jpg`, `image/png` e `image/webp`
+- limita upload a 5 MB
+- exige imagem e legenda antes do envio
+- usa `URL.createObjectURL` para preview local e revoga o blob ao limpar ou sair da tela
+- envia `FormData` para `POST /posts`
+- aplica limite de `2200` caracteres para a legenda
+
+### Perfil
+
+- o perfil alvo e buscado por username com `GET /users/{username}`
+- perfis de terceiros sao acessados com `?user=<username>`
+- a pagina carrega em paralelo:
+  - `GET /users/{id}/posts`
+  - `GET /users/{id}/followers`
+  - `GET /users/{id}/following`
+- para perfis de terceiros, o estado do botao vem de `GET /users/{id}/is-following`
+- o proprio perfil pode ser editado em `/perfil/editar`
+
+### Editar Perfil
+
+- `PUT /users/me` atualiza `name`, `username` e `bio`
+- `POST /users/me/avatar` envia avatar em `multipart/form-data`
+- limites usados na UI:
+  - `name`: 255 caracteres
+  - `username`: 30 caracteres
+  - `bio`: 500 caracteres
+  - avatar: 2 MB
+- `username` aceita apenas letras, numeros, ponto e sublinhado
+
+### Seguidores e Seguindo
+
+- `/perfil/lista/seguidores` e `/perfil/lista/seguindo` usam paginacao por pagina
+- a tela reaproveita `GET /users/{id}/followers` e `GET /users/{id}/following`
+- o viewer pode seguir ou deixar de seguir perfis direto da lista
+
+### Detalhes do Post
+
+- busca o post com `GET /posts/:id`
+- carrega comentarios com `GET /posts/:id/comments`
+- adiciona comentarios com `POST /posts/:id/comments`
+- o dono do comentario pode apagar via `DELETE /comments/:id`
+- o dono do post pode apagar via `DELETE /posts/:id`
+
+## Servicos Ja Prontos Sem Tela Dedicada
+
+O frontend tambem ja possui wrappers de API que ainda nao estao ligados a uma view propria:
+
+- `src/services/notifications.service.js`
+- `users.search()`
+- `posts.update()`
+- `comments.update()`
+- `likes.likers()`
+
+## Configuracao Local
 
 ```bash
 cp .env.example .env
-# ajuste VITE_API_URL se a API não estiver em http://localhost:8000/api
-npm install
+npm ci
 npm run dev
 ```
 
-Para build de produção:
+`.env.example` contem:
+
+```bash
+VITE_API_URL=http://localhost:8000/api
+```
+
+Para build local:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## Autenticação (Sanctum)
+## Docker
 
-O fluxo de login e cadastro bate direto nos endpoints `POST /api/auth/login` e `POST /api/auth/register`. O `access_token` retornado é persistido em `localStorage` e injetado automaticamente em todas as requisições autenticadas. Ao entrar, a SPA redireciona para o feed; acessos a rotas protegidas sem sessão ativa são redirecionados para a tela de login. O botão "Sair" dispara `POST /api/auth/logout`, invalidando o token no backend e limpando o armazenamento local. Ao carregar a página, o router usa `GET /api/auth/me` para hidratar o usuário atual a partir do token salvo.
+O frontend possui containerizacao pronta para producao:
 
-## Layout Principal
+1. `Dockerfile` multi-stage com build em `node:22-alpine`
+2. runtime em `nginx:1.27-alpine`
+3. `docker/nginx.conf` com fallback para `index.html` no history mode do Vue Router
+4. `compose.yaml` expondo `3000:80`
+5. `.dockerignore` excluindo artefatos locais e preservando `.env.example`
 
-A navegação é feita por uma barra inferior (mobile) ou lateral (desktop) com links para Home, Criar Post e Perfil. O layout base utiliza slots para áreas de conteúdo dinâmico (header, main, footer) e componentes dinâmicos (`<component :is>`) para troca de views.
-
-## Feed
-
-O feed exibe os posts das pessoas que o usuário segue, carregados via `GET /api/feed` (cursor pagination). Cada post traz autor, imagem, legenda, data, contadores de curtidas/comentários e a flag `liked_by_me`. Curtidas (`POST /api/posts/:id/like`, `DELETE /api/posts/:id/unlike`), comentários inline (`POST /api/posts/:id/comments`) e paginação com cursor estão totalmente conectados ao backend; o store atualiza o estado local com a resposta da API para manter a UI consistente.
-
-## Criar Post
-
-A tela de criação envia um `FormData` com `image` (File) e `caption` para `POST /api/posts`. O preview é gerado com `URL.createObjectURL` e revogado quando necessário. Em caso de sucesso, a nova publicação é prependida no feed do store.
-
-## Perfil
-
-A área de perfil faz `GET /api/users/{username}` para o usuário alvo, e em paralelo `GET /api/users/{id}/posts`, `GET /api/users/{id}/followers`, `GET /api/users/{id}/following` para preencher grade e contadores. Para perfis alheios, `GET /api/users/{id}/is-following` determina o estado do botão de follow, que dispara `POST /api/users/{id}/follow` ou `DELETE /api/users/{id}/unfollow` conforme o caso.
-
-A edição do próprio perfil (`PUT /api/users/me`) cobre nome, username e bio. O upload de avatar vai como `multipart/form-data` para `POST /api/users/me/avatar`. O usuário autenticado no store é atualizado com o retorno da API.
-
-As listas de seguidores e seguindo têm sua própria tela paginada, com botão "Seguir/Seguindo" respeitando o relacionamento atual do viewer.
-
-## Detalhes do Post
-
-A tela individual busca o post por `GET /api/posts/:id` e pagina comentários via `GET /api/posts/:id/comments` com botão "carregar mais". Campo de comentário envia para `POST /api/posts/:id/comments`; o dono de cada comentário pode apagá-lo via `DELETE /api/comments/:id`. Quando o usuário logado é o autor do post, a ação "Deletar post" chama `DELETE /api/posts/:id` e retorna ao perfil.
-
-## Dockerização
-
-O frontend é containerizado com build multi-stage:
-
-1. **`builder`** (`node:22-alpine`): roda `npm ci` com cache e `npm run build` com `VITE_API_URL` injetado via build-arg.
-2. **`runtime`** (`nginx:1.27-alpine`): serve o `dist/` com a config customizada de `docker/nginx.conf`, que faz fallback para `index.html` (history mode do Vue Router) e aplica cache para estáticos.
-
-O `compose.yaml` expõe a porta `3000` do host mapeada para a `80` do container e aceita `VITE_API_URL` como variável de ambiente.
+O build injeta `VITE_API_URL` como build-arg:
 
 ```bash
-# Primeiro suba o backend em ../backend
-cd ../backend && docker compose up -d --build
-
-# Depois o frontend
-cd ../frontend
 docker compose up -d --build
 ```
-
-A SPA fica acessível em `http://localhost:3000` e conversa com a API em `http://localhost:8000/api`.

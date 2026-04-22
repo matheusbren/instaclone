@@ -279,8 +279,8 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 1rem;
   background:
-    radial-gradient(circle at top right, rgba(255, 159, 89, 0.24), transparent 32%),
-    rgba(255, 252, 248, 0.9);
+    linear-gradient(135deg, rgba(0, 149, 246, 0.12) 0%, rgba(0, 149, 246, 0.04) 100%),
+    var(--app-surface);
 }
 
 .create-post__eyebrow,
@@ -323,10 +323,10 @@ onBeforeUnmount(() => {
 
 .create-post__hero-facts li {
   padding: 0.95rem 1rem;
-  border: 1px solid rgba(131, 93, 65, 0.12);
+  border: 1px solid var(--app-border);
   border-radius: 1.15rem;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--app-surface-soft);
 }
 
 .create-post__feedback {
@@ -337,15 +337,15 @@ onBeforeUnmount(() => {
 }
 
 .create-post__feedback.is-error {
-  border: 1px solid rgba(167, 52, 31, 0.18);
-  color: #8b2b17;
-  background: rgba(255, 241, 238, 0.92);
+  border: 1px solid rgba(255, 48, 64, 0.22);
+  color: #ffb4ba;
+  background: rgba(255, 48, 64, 0.08);
 }
 
 .create-post__feedback.is-success {
-  border: 1px solid rgba(53, 166, 111, 0.18);
-  color: #226846;
-  background: rgba(239, 253, 246, 0.92);
+  border: 1px solid rgba(66, 211, 146, 0.2);
+  color: #9ff0c7;
+  background: rgba(66, 211, 146, 0.08);
 }
 
 .create-post__grid {
@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
 .create-post__preview,
 .create-post__form,
 .create-post__published {
-  background: rgba(255, 252, 248, 0.92);
+  background: var(--app-surface);
 }
 
 .create-post__preview {
@@ -370,16 +370,16 @@ onBeforeUnmount(() => {
   place-items: center;
   min-height: 19rem;
   overflow: hidden;
-  border: 1px dashed rgba(240, 90, 40, 0.24);
+  border: 1px dashed var(--app-border-strong);
   border-radius: 1.5rem;
   background:
-    linear-gradient(135deg, rgba(240, 90, 40, 0.08) 0%, rgba(255, 205, 132, 0.18) 100%),
-    rgba(255, 255, 255, 0.82);
+    linear-gradient(135deg, rgba(0, 149, 246, 0.12) 0%, rgba(0, 149, 246, 0.02) 100%),
+    var(--app-surface-soft);
 }
 
 .create-post__frame.has-image {
   border-style: solid;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--app-surface-soft);
 }
 
 .create-post__frame img {
@@ -448,7 +448,7 @@ onBeforeUnmount(() => {
   gap: 0.75rem;
   padding: 0.9rem 1rem;
   border-radius: 1rem;
-  background: rgba(247, 239, 230, 0.72);
+  background: var(--app-surface-soft);
 }
 
 .create-post__textarea {

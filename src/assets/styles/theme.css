@@ -1,17 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Instrument+Sans:wght@400;500;600;700&display=swap');
 
 :root {
-  --app-bg: #f7efe6;
-  --app-bg-strong: #f2e4d3;
-  --app-surface: rgba(255, 252, 248, 0.86);
-  --app-surface-strong: rgba(255, 255, 255, 0.94);
-  --app-border: rgba(131, 93, 65, 0.14);
-  --app-text: #2f221c;
-  --app-muted: #7a655b;
-  --app-accent: #f05a28;
-  --app-accent-strong: #cf4313;
-  --app-accent-soft: rgba(240, 90, 40, 0.14);
-  --app-shadow: 0 24px 70px rgba(88, 51, 28, 0.12);
+  --app-bg: #000;
+  --app-surface: #121212;
+  --app-surface-soft: #1a1a1a;
+  --app-surface-strong: #202020;
+  --app-border: #262626;
+  --app-border-strong: #363636;
+  --app-text: #f5f5f5;
+  --app-muted: #a8a8a8;
+  --app-link: #0095f6;
+  --app-accent: #0095f6;
+  --app-accent-strong: #79c8ff;
+  --app-accent-soft: rgba(0, 149, 246, 0.14);
+  --app-danger: #ff3040;
+  --app-success: #42d392;
+  --app-shadow: none;
+
+  --bs-body-bg: var(--app-bg);
+  --bs-body-color: var(--app-text);
+  --bs-body-font-family: 'Instrument Sans', 'Segoe UI', sans-serif;
+  --bs-border-color: var(--app-border);
+  --bs-secondary-color: var(--app-muted);
+  --bs-tertiary-bg-rgb: 0, 0, 0;
+  --bs-secondary-bg: var(--app-surface-soft);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html,
@@ -22,11 +40,21 @@ body {
 body {
   margin: 0;
   color: var(--app-text);
-  font-family: 'Manrope', 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(255, 130, 92, 0.24), transparent 28%),
-    radial-gradient(circle at top right, rgba(255, 205, 132, 0.24), transparent 24%),
-    linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-strong) 100%);
+  font-family: 'Instrument Sans', 'Segoe UI', sans-serif;
+  background: var(--app-bg);
+}
+
+::selection {
+  color: #fff;
+  background: rgba(0, 149, 246, 0.42);
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
 }
 
 #app {
@@ -35,246 +63,380 @@ body {
 
 .card {
   border: 1px solid var(--app-border);
-  background: var(--app-surface-strong);
-  box-shadow: var(--app-shadow);
+  background: var(--app-surface);
+  box-shadow: none;
+}
+
+.btn {
+  border-radius: 0.55rem;
+  font-weight: 700;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--app-link);
+  --bs-btn-border-color: var(--app-link);
+  --bs-btn-hover-bg: #1877f2;
+  --bs-btn-hover-border-color: #1877f2;
+  --bs-btn-active-bg: #1877f2;
+  --bs-btn-active-border-color: #1877f2;
+  --bs-btn-disabled-bg: var(--app-link);
+  --bs-btn-disabled-border-color: var(--app-link);
 }
 
 .btn-outline-secondary {
-  border-color: rgba(122, 101, 91, 0.25);
+  --bs-btn-color: var(--app-text);
+  --bs-btn-border-color: var(--app-border-strong);
+  --bs-btn-hover-color: var(--app-text);
+  --bs-btn-hover-bg: var(--app-surface-soft);
+  --bs-btn-hover-border-color: var(--app-border-strong);
+  --bs-btn-active-color: var(--app-text);
+  --bs-btn-active-bg: var(--app-surface-soft);
+  --bs-btn-active-border-color: var(--app-border-strong);
+  --bs-btn-disabled-color: var(--app-muted);
+  --bs-btn-disabled-border-color: var(--app-border);
+}
+
+.form-control,
+.form-select,
+textarea {
   color: var(--app-text);
+  border-color: var(--app-border);
+  background: var(--app-surface-soft);
 }
 
-.btn-outline-secondary:hover,
-.btn-outline-secondary:focus-visible {
-  border-color: var(--app-accent);
-  background: var(--app-accent);
-  color: #fff;
+.form-control:focus,
+.form-select:focus,
+textarea:focus {
+  color: var(--app-text);
+  border-color: rgba(0, 149, 246, 0.55);
+  box-shadow: 0 0 0 0.2rem rgba(0, 149, 246, 0.14);
+  background: var(--app-surface-soft);
 }
 
-.app-shell {
-  min-height: 100vh;
-  padding: 1rem;
+.form-control::placeholder,
+textarea::placeholder {
+  color: #6f6f6f;
 }
 
-.app-shell__inner {
-  width: min(1180px, 100%);
-  margin: 0 auto;
-}
-
-.app-shell__sidebar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 30;
-  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(180deg, rgba(247, 239, 230, 0) 0%, rgba(247, 239, 230, 0.96) 45%);
-}
-
-.app-sidebar {
-  width: min(100%, 1180px);
-  margin: 0 auto;
-  padding: 0.75rem;
-  border: 1px solid var(--app-border);
-  border-radius: 1.5rem;
-  background: rgba(255, 252, 248, 0.94);
-  box-shadow: 0 18px 40px rgba(88, 51, 28, 0.16);
-}
-
-.app-sidebar__brand {
-  display: none;
-}
-
-.app-sidebar__eyebrow,
-.app-topbar__eyebrow {
-  display: inline-block;
-  margin-bottom: 0.35rem;
-  color: var(--app-accent-strong);
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.app-sidebar__title,
-.app-topbar__title {
-  margin: 0;
-  font-size: clamp(1.75rem, 4vw, 2.7rem);
-  font-weight: 800;
-  line-height: 1.05;
-}
-
-.app-sidebar__description,
-.app-topbar__description,
-.app-footer-card__description,
-.app-account-card__meta span {
-  margin: 0;
+.text-body-secondary,
+.form-text,
+.alert {
   color: var(--app-muted);
-  line-height: 1.6;
 }
 
-.app-nav {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.45rem;
+.link-primary {
+  color: var(--app-link) !important;
 }
 
-.app-nav__link {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-  padding: 0.7rem 0.45rem;
-  border-radius: 1rem;
-  color: var(--app-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  transition:
-    transform 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.app-nav__link:hover,
-.app-nav__link:focus-visible {
-  color: var(--app-accent-strong);
-  background: var(--app-accent-soft);
-}
-
-.app-nav__link.is-active {
-  color: #fff;
-  background: linear-gradient(135deg, var(--app-accent) 0%, #ff8c4a 100%);
-  box-shadow: 0 16px 32px rgba(240, 90, 40, 0.24);
-  transform: translateY(-2px);
+.alert-danger {
+  color: #ffb4ba;
+  border-color: rgba(255, 48, 64, 0.24);
+  background: rgba(255, 48, 64, 0.08);
 }
 
 .app-icon {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.45rem;
+  height: 1.45rem;
   flex-shrink: 0;
 }
 
-.app-shell__content {
+.ig-layout {
   display: grid;
-  gap: 1rem;
-  padding-bottom: 7.5rem;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 2rem;
+  width: min(1280px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
 }
 
-.app-topbar,
-.app-footer-card {
-  padding: 1.35rem;
-  border: 1px solid var(--app-border);
-  border-radius: 1.75rem;
-  background: var(--app-surface);
-  backdrop-filter: blur(14px);
-  box-shadow: var(--app-shadow);
+.ig-layout.is-feed {
+  grid-template-columns: 88px minmax(0, 1fr) 320px;
 }
 
-.app-topbar {
-  display: grid;
-  gap: 1rem;
-}
-
-.app-topbar__copy {
-  min-width: 0;
-}
-
-.app-account-card {
+.ig-sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 0.85rem;
-  padding: 1rem;
-  border-radius: 1.4rem;
-  background: rgba(255, 255, 255, 0.72);
+  gap: 2rem;
+  height: 100vh;
+  padding: 1.75rem 0;
+  border-right: 1px solid var(--app-border);
 }
 
-.app-account-card__avatar {
+.ig-brand {
   display: grid;
   place-items: center;
   width: 3rem;
   height: 3rem;
-  border-radius: 50%;
-  color: #fff;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--app-accent) 0%, #ff9f59 100%);
+  color: var(--app-text);
+  text-decoration: none;
 }
 
-.app-account-card__meta {
+.ig-brand__glyph {
   display: grid;
-  gap: 0.15rem;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.ig-brand__wordmark,
+.ig-nav__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ig-nav {
+  display: flex;
   flex: 1;
-  min-width: 8rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  align-items: center;
 }
 
-.app-footer-card__title {
-  margin: 0 0 0.25rem;
-  font-weight: 800;
+.ig-nav__link,
+.ig-sidebar__account,
+.ig-sidebar__more {
+  display: grid;
+  place-items: center;
+  width: 3.35rem;
+  height: 3.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  color: var(--app-text);
+  background: transparent;
+  text-decoration: none;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease;
 }
 
-.app-shell__main > * {
+.ig-nav__link:hover,
+.ig-nav__link:focus-visible,
+.ig-sidebar__account:hover,
+.ig-sidebar__account:focus-visible,
+.ig-sidebar__more:hover,
+.ig-sidebar__more:focus-visible {
+  background: var(--app-surface-soft);
+}
+
+.ig-nav__link.is-active {
+  background: var(--app-surface-soft);
+  transform: translateY(-1px);
+}
+
+.ig-sidebar__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  align-items: center;
+}
+
+.ig-content {
+  min-width: 0;
+  padding-top: 1.5rem;
+}
+
+.ig-main {
   min-width: 0;
 }
 
-@media (min-width: 992px) {
-  .app-shell {
-    padding: 1.5rem;
-  }
+.ig-main--feed {
+  width: min(100%, 630px);
+}
 
-  .app-shell__inner {
-    display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 1.25rem;
-    align-items: start;
-  }
+.ig-main--default {
+  width: min(100%, 960px);
+}
 
-  .app-shell__sidebar {
-    position: sticky;
-    top: 1.5rem;
-    padding: 0;
-    background: none;
-  }
+.ig-main--profile {
+  width: min(100%, 935px);
+}
 
-  .app-sidebar {
-    padding: 1.5rem;
-    border-radius: 2rem;
-  }
+.ig-topbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
 
-  .app-sidebar__brand {
+.ig-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: min(470px, 100%);
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.85rem;
+  color: #8e8e8e;
+  text-decoration: none;
+  background: var(--app-surface-soft);
+}
+
+.ig-rail {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: grid;
+  gap: 1.6rem;
+  padding-top: 2rem;
+}
+
+.ig-rail__account,
+.ig-rail__suggestions {
+  display: grid;
+  gap: 1rem;
+}
+
+.ig-rail__account {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.ig-rail__identity,
+.ig-rail__item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.ig-rail__copy,
+.ig-rail__item span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.ig-rail__copy strong,
+.ig-rail__item strong {
+  color: var(--app-text);
+  font-size: 0.92rem;
+}
+
+.ig-rail__copy span,
+.ig-rail__item small,
+.ig-rail__meta,
+.ig-rail__empty {
+  color: var(--app-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.ig-rail__action,
+.ig-rail__heading a,
+.ig-rail__follow {
+  border: 0;
+  padding: 0;
+  color: var(--app-link);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: none;
+}
+
+.ig-rail__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ig-rail__heading strong {
+  color: var(--app-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.ig-rail__list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ig-rail__list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.ig-rail__item {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ig-rail__meta {
+  margin: 0;
+}
+
+@media (max-width: 991.98px) {
+  .ig-layout,
+  .ig-layout.is-feed,
+  .ig-layout.is-profile {
     display: block;
-    margin-bottom: 1.75rem;
+    width: 100%;
+    padding: 0 0 5rem;
   }
 
-  .app-nav {
-    grid-template-columns: 1fr;
+  .ig-sidebar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    display: block;
+    height: auto;
+    padding: 0.35rem 0 calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--app-border);
+    border-right: 0;
+    background: rgba(0, 0, 0, 0.96);
+    backdrop-filter: blur(10px);
   }
 
-  .app-nav__link {
+  .ig-brand,
+  .ig-sidebar__footer,
+  .ig-rail {
+    display: none;
+  }
+
+  .ig-nav {
     flex-direction: row;
-    justify-content: flex-start;
-    gap: 0.85rem;
-    padding: 0.9rem 1rem;
-    font-size: 0.95rem;
-    text-align: left;
+    justify-content: space-around;
+    gap: 0;
   }
 
-  .app-shell__content {
-    min-height: calc(100vh - 3rem);
-    padding-bottom: 0;
+  .ig-nav__link {
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 999px;
   }
 
-  .app-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    padding: 1.5rem;
+  .ig-content {
+    padding-top: 1rem;
   }
 
-  .app-account-card {
-    min-width: 18rem;
-    justify-content: flex-end;
+  .ig-topbar {
+    padding: 0 1rem;
+  }
+
+  .ig-main,
+  .ig-main--feed,
+  .ig-main--default,
+  .ig-main--profile {
+    width: 100%;
+    padding: 0 1rem;
   }
 }

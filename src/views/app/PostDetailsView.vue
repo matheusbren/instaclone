@@ -446,7 +446,7 @@ watch(
 .post-details__missing {
   overflow: hidden;
   border-radius: 1.75rem;
-  background: rgba(255, 252, 248, 0.9);
+  background: var(--app-surface);
 }
 
 .post-details__card {
@@ -457,8 +457,8 @@ watch(
   position: relative;
   min-height: 18rem;
   background:
-    radial-gradient(circle at top left, rgba(255, 204, 150, 0.55), transparent 42%),
-    linear-gradient(145deg, rgba(255, 242, 231, 0.92) 0%, rgba(247, 232, 221, 0.96) 100%);
+    linear-gradient(135deg, rgba(0, 149, 246, 0.14) 0%, rgba(0, 0, 0, 0) 48%),
+    var(--app-surface-soft);
 }
 
 .post-details__image {
@@ -561,9 +561,9 @@ watch(
 .post-details__stats div {
   gap: 0.22rem;
   padding: 1rem;
-  border: 1px solid rgba(131, 93, 65, 0.14);
+  border: 1px solid var(--app-border);
   border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-surface-soft);
 }
 
 .post-details__actions {
@@ -587,7 +587,7 @@ watch(
 
 .post-details__action {
   padding: 0.75rem 1.1rem;
-  color: var(--app-accent-strong);
+  color: var(--app-text);
   background: var(--app-accent-soft);
 }
 
@@ -599,8 +599,8 @@ watch(
 .post-details__load-more:hover:not(:disabled),
 .post-details__load-more:focus-visible {
   color: #fff;
-  background: linear-gradient(135deg, var(--app-accent) 0%, #ff8c4a 100%);
-  box-shadow: 0 14px 24px rgba(240, 90, 40, 0.22);
+  background: var(--app-link);
+  box-shadow: none;
   transform: translateY(-1px);
 }
 
@@ -608,8 +608,8 @@ watch(
   display: grid;
   gap: 1rem;
   padding: 1.1rem;
-  border: 1px solid rgba(131, 93, 65, 0.12);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
 }
 
 .post-details__comments-head {
@@ -633,8 +633,8 @@ watch(
   gap: 0.8rem;
   width: 100%;
   padding: 0.85rem 1rem;
-  color: var(--app-accent-strong);
-  background: rgba(247, 239, 230, 0.9);
+  color: var(--app-text);
+  background: var(--app-surface-soft);
 }
 
 .post-details__comment-list {
@@ -649,7 +649,7 @@ watch(
   gap: 0.55rem;
   padding: 1rem;
   border-radius: 1.1rem;
-  background: rgba(247, 239, 230, 0.72);
+  background: var(--app-surface-soft);
 }
 
 .post-details__comment-meta {
@@ -667,7 +667,7 @@ watch(
 .post-details__comment-delete {
   border: 0;
   background: none;
-  color: var(--app-accent-strong);
+  color: var(--app-link);
   font-weight: 700;
   cursor: pointer;
 }
@@ -685,16 +685,16 @@ watch(
   width: 100%;
   min-height: 7rem;
   padding: 0.95rem 1rem;
-  border: 1px solid rgba(122, 101, 91, 0.2);
+  border: 1px solid var(--app-border-strong);
   border-radius: 1.15rem;
   color: var(--app-text);
   resize: vertical;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--app-surface-soft);
 }
 
 .post-details__comment-input:focus-visible {
-  outline: 2px solid rgba(240, 90, 40, 0.18);
-  border-color: rgba(240, 90, 40, 0.45);
+  outline: 2px solid rgba(0, 149, 246, 0.2);
+  border-color: rgba(0, 149, 246, 0.45);
 }
 
 .post-details__submit {
@@ -702,7 +702,7 @@ watch(
   min-width: 13rem;
   padding: 0.85rem 1rem;
   color: #fff;
-  background: linear-gradient(135deg, var(--app-accent-strong) 0%, var(--app-accent) 100%);
+  background: var(--app-link);
 }
 
 .post-details__submit:disabled {
@@ -715,10 +715,10 @@ watch(
 .post-details__feedback {
   margin: 0;
   padding: 0.9rem 1rem;
-  border: 1px solid rgba(240, 90, 40, 0.14);
+  border: 1px solid var(--app-border);
   border-radius: 1rem;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.78);
+  font-weight: 600;
+  background: var(--app-surface-soft);
 }
 
 .post-details__missing {
