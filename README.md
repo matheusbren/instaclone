@@ -57,9 +57,10 @@ O modulo `auth.service.js` tambem expoe `refresh()`, mas a UI atual nao usa esse
 O shell autenticado usa:
 
 - navegacao inferior no mobile e lateral no desktop
-- quatro entradas principais: `Home`, `Descobrir`, `Criar` e `Perfil`
-- `AppShell` com slots `sidebar`, `header`, `default` e `footer`
-- `<RouterView v-slot="{ Component }">` com `<component :is="Component" />` no `AppLayout`
+- quatro entradas principais visiveis: `Home`, `Buscar`, `Criar` e `Perfil`
+- shell renderizado diretamente em `src/layouts/AppLayout.vue`
+- `<RouterView v-slot="{ Component }">` com `<component :is="Component" />` decide a view atual
+- `src/components/layout/AppShell.vue` existe como componente reutilizavel com slots `sidebar`, `header`, `default` e `footer`, mas nao esta conectado ao layout atual
 
 ### Feed
 

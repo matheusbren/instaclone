@@ -24,8 +24,9 @@
 
 - [x] Layout responsivo base para area autenticada e area de visitante
 - [x] Navegacao inferior no mobile e lateral no desktop
-- [x] Exibir `Home`, `Descobrir`, `Criar` e `Perfil` no shell autenticado
-- [x] Usar slots no layout base para `sidebar`, `header`, `main` e `footer`
+- [x] Exibir `Home`, `Buscar`, `Criar` e `Perfil` no shell autenticado
+- [x] Renderizar o shell autenticado diretamente em `src/layouts/AppLayout.vue`
+- [x] Manter `AppShell.vue` como componente auxiliar com slots `sidebar`, `header`, `default` e `footer`
 - [x] Usar componente dinamico no `AppLayout` para troca de views
 
 ## 4 - Feed
@@ -91,12 +92,3 @@
 - [x] `compose.yaml` expondo `3000:80`
 - [x] `.dockerignore` excluindo artefatos locais
 - [x] Build de producao do frontend (`npm run build`)
-
-## 11 - Superficie de API pronta sem tela dedicada
-
-- [x] `auth.refresh()`
-- [x] `users.search()`
-- [x] `posts.update()`
-- [x] `comments.update()`
-- [x] `likes.likers()`
-- [x] `notifications.service.js`
