@@ -1,0 +1,17 @@
+{
+    frankenphp
+    order mercure before php_server
+}
+
+:80 {
+    root * /app/public
+    encode zstd br gzip
+
+    mercure {
+        publisher_jwt_key {env.MERCURE_JWT_SECRET}
+        subscriber_jwt_key {env.MERCURE_JWT_SECRET}
+        cors_origins *
+    }
+
+    php_server
+}
