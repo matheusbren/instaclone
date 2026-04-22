@@ -7,7 +7,9 @@ until mysqladmin ping -h "${DB_HOST}" -u "${DB_USERNAME}" -p"${DB_PASSWORD}" --s
 done
 echo "MySQL ready."
 
-php artisan migrate --force
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+    php artisan migrate --force
+fi
 php artisan storage:link || true
 
 exec frankenphp run --config /etc/caddy/Caddyfile
