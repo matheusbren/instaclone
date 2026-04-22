@@ -1,169 +1,154 @@
-# InstaClone - Frontend (Vue 3)
+# InstaClone
 
-## Visao Geral
+## Sobre o Projeto
+# InstaClone
 
-Este diretorio contem a SPA do InstaClone, escrita em Vue 3 com Vite. O app e dividido entre uma area autenticada e uma area de visitante, consome a API via Bearer token, persiste apenas o `access_token` no `localStorage` e reidrata o usuario atual com `GET /auth/me` ao entrar nas rotas protegidas.
+## Sobre o Projeto
 
-Hoje o frontend ja entrega os fluxos de:
+O InstaClone é uma rede social inspirada no Instagram, desenvolvida como projeto final da disciplina. A proposta é oferecer uma experiência familiar de compartilhamento de fotos, onde pessoas podem publicar momentos, acompanhar amigos, descobrir novos perfis e interagir por meio de curtidas e comentários.
 
-- autenticacao (`/login`, `/cadastro`)
-- feed (`/feed`)
-- descoberta de perfis (`/descobrir`)
-- criacao de post (`/criar`)
-- perfil proprio e de terceiros (`/perfil` e `?user=<username>`)
-- edicao de perfil (`/perfil/editar`)
-- listas de seguidores/seguindo (`/perfil/lista/:type`)
-- detalhes do post (`/posts/:postId`)
-- fallback 404
+A plataforma foi pensada para ser simples, direta e agradável de usar, tanto no celular quanto no computador. A navegação se adapta ao dispositivo: no mobile, um menu inferior dá acesso rápido às principais seções; no desktop, uma barra lateral acompanha o usuário em toda a jornada.
 
-## Stack
+## Como Funciona
 
-- Vue 3 com Composition API e `<script setup>`
-- Vue Router 4 com guards `requiresAuth` e `requiresGuest`
-- Pinia para os stores `auth` e `feed`
-- axios com interceptor de token Bearer e limpeza de sessao em `401`
-- Bootstrap 5 + tema proprio em `src/assets/styles/theme.css`
-- Vite 8
+Quem acessa o InstaClone pela primeira vez é recebido por uma tela de boas-vindas, onde pode criar uma conta ou entrar com credenciais existentes. A partir do login, o usuário entra na área social do app e passa a ter acesso a todo o conteúdo das pessoas que segue, além de poder publicar os seus próprios momentos.
 
-`package.json` exige Node `^20.19.0 || >=22.12.0`.
+## Páginas e Funcionalidades
 
-## Estrutura
+### Cadastro e Login
 
-```text
-src/
-  assets/styles/   tema global
-  components/      UI reutilizavel (layout, feed, profile)
-  composables/     useAuth e useFeed
-  layouts/         AppLayout e AuthLayout
-  router/          rotas e guards
-  services/        cliente axios + wrappers por recurso
-  stores/          auth, feed e helpers de normalizacao
-  views/           telas de auth, app e 404
-```
-
-## Comportamento Atual
-
-### Autenticacao
-
-- `POST /auth/login` e `POST /auth/register` criam sessao e atualizam o store `auth`
-- `POST /auth/logout` limpa a sessao local mesmo se o token ja estiver invalido
-- `GET /auth/me` hidrata o usuario autenticado a partir do token salvo
-- o router redireciona visitantes para `/login` e usuarios autenticados para `/feed`
-
-O modulo `auth.service.js` tambem expoe `refresh()`, mas a UI atual nao usa esse endpoint.
-
-### Layout Principal
-
-O shell autenticado usa:
-
-- navegacao inferior no mobile e lateral no desktop
-- quatro entradas principais visiveis: `Home`, `Buscar`, `Criar` e `Perfil`
-- shell renderizado diretamente em `src/layouts/AppLayout.vue`
-- `<RouterView v-slot="{ Component }">` com `<component :is="Component" />` decide a view atual
-- `src/components/layout/AppShell.vue` existe como componente reutilizavel com slots `sidebar`, `header`, `default` e `footer`, mas nao esta conectado ao layout atual
+Duas telas dedicadas à entrada no aplicativo. O cadastro pede as informações básicas para criar o perfil, e o login permite retomar a sessão a qualquer momento. Usuários já autenticados são levados direto para o feed, sem precisar passar por essas telas novamente.
 
 ### Feed
 
-- carrega posts com `GET /feed` usando cursor pagination (`next_cursor`)
-- o store `feed` normaliza os posts e centraliza `fetchFeed`, `loadMoreFeed`, `toggleLike`, `addComment` e `createPost`
-- cada card mostra autor, imagem, legenda, data, total de curtidas e total de comentarios
-- comentarios inline sao enviados por `POST /posts/:id/comments`
-- curtidas usam `POST /posts/:id/like` e `DELETE /posts/:id/unlike`
+A tela principal do app. Mostra, em ordem cronológica, as publicações das pessoas que o usuário segue. Cada post exibe a foto, a legenda, o autor, a data e os contadores de curtidas e comentários.
+
+O usuário pode:
+
+- curtir e descurtir publicações com um toque
+- comentar diretamente no card do post
+- carregar mais publicações conforme rola a tela
 
 ### Descobrir
 
-- a tela usa `GET /users/suggestions` para listar perfis sugeridos
-- o estado de relacionamento do viewer e montado a partir de `GET /users/:id/following`
-- seguir/deixar de seguir usa `POST /users/:id/follow` e `DELETE /users/:id/unfollow`
+Uma tela voltada à descoberta de novos perfis. Apresenta sugestões de usuários que o visitante ainda não segue, facilitando a expansão do círculo social dentro do app. É possível seguir ou deixar de seguir qualquer perfil direto da lista.
 
 ### Criar Post
 
-- aceita `image/jpeg`, `image/jpg`, `image/png` e `image/webp`
-- limita upload a 5 MB
-- exige imagem e legenda antes do envio
-- usa `URL.createObjectURL` para preview local e revoga o blob ao limpar ou sair da tela
-- envia `FormData` para `POST /posts`
-- aplica limite de `2200` caracteres para a legenda
+Área dedicada à publicação de novas fotos. O usuário escolhe uma imagem do dispositivo, vê uma prévia em tempo real e escreve uma legenda antes de publicar. Existem limites razoáveis para o tamanho do arquivo e o tamanho da legenda, garantindo que a experiência continue fluida para todos.
+
+Ao concluir, a publicação aparece imediatamente no feed.
 
 ### Perfil
 
-- o perfil alvo e buscado por username com `GET /users/{username}`
-- perfis de terceiros sao acessados com `?user=<username>`
-- a pagina carrega em paralelo:
-  - `GET /users/{id}/posts`
-  - `GET /users/{id}/followers`
-  - `GET /users/{id}/following`
-- para perfis de terceiros, o estado do botao vem de `GET /users/{id}/is-following`
-- o proprio perfil pode ser editado em `/perfil/editar`
+Cada usuário tem uma página de perfil que reúne:
+
+- foto, nome, username e bio
+- contadores de publicações, seguidores e seguindo
+- grade com todas as publicações já feitas
+
+É possível visitar o perfil de qualquer outra pessoa e, a partir dele, seguir, deixar de seguir ou explorar o conteúdo publicado.
 
 ### Editar Perfil
 
-- `PUT /users/me` atualiza `name`, `username` e `bio`
-- `POST /users/me/avatar` envia avatar em `multipart/form-data`
-- limites usados na UI:
-  - `name`: 255 caracteres
-  - `username`: 30 caracteres
-  - `bio`: 500 caracteres
-  - avatar: 2 MB
-- `username` aceita apenas letras, numeros, ponto e sublinhado
+Uma tela exclusiva para o dono da conta, onde é possível atualizar nome, username, bio e foto de perfil. As alterações são refletidas imediatamente em toda a aplicação.
 
 ### Seguidores e Seguindo
 
-- `/perfil/lista/seguidores` e `/perfil/lista/seguindo` usam paginacao por pagina
-- a tela reaproveita `GET /users/{id}/followers` e `GET /users/{id}/following`
-- o viewer pode seguir ou deixar de seguir perfis direto da lista
+Páginas com as listas completas de quem segue e de quem é seguido por um determinado perfil. A partir dessas listas, o usuário consegue navegar entre perfis e também seguir ou deixar de seguir outras pessoas sem precisar sair da tela.
 
 ### Detalhes do Post
 
-- busca o post com `GET /posts/:id`
-- carrega comentarios com `GET /posts/:id/comments`
-- adiciona comentarios com `POST /posts/:id/comments`
-- o dono do comentario pode apagar via `DELETE /comments/:id`
-- o dono do post pode apagar via `DELETE /posts/:id`
+Ao tocar em uma publicação, o usuário é levado a uma visão ampliada, com a imagem em destaque e a thread completa de comentários. Nessa tela é possível:
 
-## Servicos Ja Prontos Sem Tela Dedicada
+- ler todos os comentários, com opção de carregar mais
+- adicionar novos comentários
+- apagar o próprio comentário
+- apagar a publicação, quando o usuário é o autor
 
-O frontend tambem ja possui wrappers de API que ainda nao estao ligados a uma view propria:
+### Página 404
 
-- `src/services/notifications.service.js`
-- `users.search()`
-- `posts.update()`
-- `comments.update()`
-- `likes.likers()`
+Se o usuário acessar um endereço inexistente, uma tela amigável indica que o conteúdo não foi encontrado e oferece um caminho de volta para a navegação.
 
-## Configuracao Local
+## Experiência do Usuário
 
-```bash
-cp .env.example .env
-npm ci
-npm run dev
-```
+O projeto dá atenção especial a detalhes que tornam o uso mais agradável:
 
-`.env.example` contem:
+- interface responsiva, pensada para celular e desktop
+- feedback visual imediato em curtidas, comentários e publicações
+- navegação protegida, garantindo que conteúdo pessoal só seja acessível após o login
+- tema visual próprio, inspirado na estética limpa das redes sociais modernas
 
-```bash
-VITE_API_URL=http://localhost:8000/api
-```
+O InstaClone é uma rede social inspirada no Instagram, desenvolvida como projeto final da disciplina. A proposta é oferecer uma experiência familiar de compartilhamento de fotos, onde pessoas podem publicar momentos, acompanhar amigos, descobrir novos perfis e interagir por meio de curtidas e comentários.
 
-Para build local:
+A plataforma foi pensada para ser simples, direta e agradável de usar, tanto no celular quanto no computador. A navegação se adapta ao dispositivo: no mobile, um menu inferior dá acesso rápido às principais seções; no desktop, uma barra lateral acompanha o usuário em toda a jornada.
 
-```bash
-npm run build
-npm run preview
-```
+## Como Funciona
 
-## Docker
+Quem acessa o InstaClone pela primeira vez é recebido por uma tela de boas-vindas, onde pode criar uma conta ou entrar com credenciais existentes. A partir do login, o usuário entra na área social do app e passa a ter acesso a todo o conteúdo das pessoas que segue, além de poder publicar os seus próprios momentos.
 
-O frontend possui containerizacao pronta para producao:
+## Páginas e Funcionalidades
 
-1. `Dockerfile` multi-stage com build em `node:22-alpine`
-2. runtime em `nginx:1.27-alpine`
-3. `docker/nginx.conf` com fallback para `index.html` no history mode do Vue Router
-4. `compose.yaml` expondo `3000:80`
-5. `.dockerignore` excluindo artefatos locais e preservando `.env.example`
+### Cadastro e Login
 
-O build injeta `VITE_API_URL` como build-arg:
+Duas telas dedicadas à entrada no aplicativo. O cadastro pede as informações básicas para criar o perfil, e o login permite retomar a sessão a qualquer momento. Usuários já autenticados são levados direto para o feed, sem precisar passar por essas telas novamente.
 
-```bash
-docker compose up -d --build
-```
+### Feed
+
+A tela principal do app. Mostra, em ordem cronológica, as publicações das pessoas que o usuário segue. Cada post exibe a foto, a legenda, o autor, a data e os contadores de curtidas e comentários.
+
+O usuário pode:
+
+- curtir e descurtir publicações com um toque
+- comentar diretamente no card do post
+- carregar mais publicações conforme rola a tela
+
+### Descobrir
+
+Uma tela voltada à descoberta de novos perfis. Apresenta sugestões de usuários que o visitante ainda não segue, facilitando a expansão do círculo social dentro do app. É possível seguir ou deixar de seguir qualquer perfil direto da lista.
+
+### Criar Post
+
+Área dedicada à publicação de novas fotos. O usuário escolhe uma imagem do dispositivo, vê uma prévia em tempo real e escreve uma legenda antes de publicar. Existem limites razoáveis para o tamanho do arquivo e o tamanho da legenda, garantindo que a experiência continue fluida para todos.
+
+Ao concluir, a publicação aparece imediatamente no feed.
+
+### Perfil
+
+Cada usuário tem uma página de perfil que reúne:
+
+- foto, nome, username e bio
+- contadores de publicações, seguidores e seguindo
+- grade com todas as publicações já feitas
+
+É possível visitar o perfil de qualquer outra pessoa e, a partir dele, seguir, deixar de seguir ou explorar o conteúdo publicado.
+
+### Editar Perfil
+
+Uma tela exclusiva para o dono da conta, onde é possível atualizar nome, username, bio e foto de perfil. As alterações são refletidas imediatamente em toda a aplicação.
+
+### Seguidores e Seguindo
+
+Páginas com as listas completas de quem segue e de quem é seguido por um determinado perfil. A partir dessas listas, o usuário consegue navegar entre perfis e também seguir ou deixar de seguir outras pessoas sem precisar sair da tela.
+
+### Detalhes do Post
+
+Ao tocar em uma publicação, o usuário é levado a uma visão ampliada, com a imagem em destaque e a thread completa de comentários. Nessa tela é possível:
+
+- ler todos os comentários, com opção de carregar mais
+- adicionar novos comentários
+- apagar o próprio comentário
+- apagar a publicação, quando o usuário é o autor
+
+### Página 404
+
+Se o usuário acessar um endereço inexistente, uma tela amigável indica que o conteúdo não foi encontrado e oferece um caminho de volta para a navegação.
+
+## Experiência do Usuário
+
+O projeto dá atenção especial a detalhes que tornam o uso mais agradável:
+
+- interface responsiva, pensada para celular e desktop
+- feedback visual imediato em curtidas, comentários e publicações
+- navegação protegida, garantindo que conteúdo pessoal só seja acessível após o login
+- tema visual próprio, inspirado na estética limpa das redes sociais modernas
