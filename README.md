@@ -1,75 +1,126 @@
-## Sobre o Projeto
+# InstaClone — Frontend (Vue 3)
 
-O InstaClone é uma rede social inspirada no Instagram, desenvolvida como projeto final da disciplina. A proposta é oferecer uma experiência familiar de compartilhamento de fotos, onde pessoas podem publicar momentos, acompanhar amigos, descobrir novos perfis e interagir por meio de curtidas e comentários.
+## Visão Geral
 
-A plataforma foi pensada para ser simples, direta e agradável de usar, tanto no celular quanto no computador. A navegação se adapta ao dispositivo: no mobile, um menu inferior dá acesso rápido às principais seções; no desktop, uma barra lateral acompanha o usuário em toda a jornada.
+O InstaClone é uma rede social inspirada no Instagram, construída como projeto final da disciplina. Este repositório contém o **frontend** da aplicação: uma SPA em Vue 3 que consome uma API RESTful externa (o backend do projeto vive em `../backend`).
 
-## Como Funciona
+A aplicação está integrada à API: autenticação por JWT, feed paginado por cursor, upload multipart de imagens e gerenciamento de seguidores/curtidas/comentários vêm todos do servidor. O único estado persistido localmente é o token de acesso, guardado em `localStorage` sob a chave `instaclone.token`.
 
-Quem acessa o InstaClone pela primeira vez é recebido por uma tela de boas-vindas, onde pode criar uma conta ou entrar com credenciais existentes. A partir do login, o usuário entra na área social do app e passa a ter acesso a todo o conteúdo das pessoas que segue, além de poder publicar os seus próprios momentos.
+## Stack
 
-## Páginas e Funcionalidades
+- **Vue 3** (`^3.5`) com `<script setup>`
+- **Vite 8** como bundler/dev server
+- **Vue Router 4** com histórico HTML5 e guards globais
+- **Pinia 3** para o estado compartilhado
+- **Axios** como cliente HTTP, com interceptors de `Authorization` e `401`
+- **Bootstrap 5** (reset/utilidades) + tema CSS próprio em [src/assets/styles/theme.css](src/assets/styles/theme.css)
+- **Node.js** `^20.19.0 || >=22.12.0`
 
-### Cadastro e Login
+## Como rodar
 
-Duas telas dedicadas à entrada no aplicativo. O cadastro pede as informações básicas para criar o perfil, e o login permite retomar a sessão a qualquer momento. Usuários já autenticados são levados direto para o feed, sem precisar passar por essas telas novamente.
+```bash
+# instalar dependências
+npm install
 
-### Feed
+# subir em modo desenvolvimento (http://localhost:5173)
+npm run dev
 
-A tela principal do app. Mostra, em ordem cronológica, as publicações das pessoas que o usuário segue. Cada post exibe a foto, a legenda, o autor, a data e os contadores de curtidas e comentários.
+# build de produção para ./dist
+npm run build
 
-O usuário pode:
+# pré-visualizar o build
+npm run preview
+```
 
-- curtir e descurtir publicações com um toque
-- comentar diretamente no card do post
-- carregar mais publicações conforme rola a tela
+### Variáveis de ambiente
 
-### Descobrir
+Copie [.env.example](.env.example) para `.env` e ajuste a URL da API se necessário:
 
-Uma tela voltada à descoberta de novos perfis. Apresenta sugestões de usuários que o visitante ainda não segue, facilitando a expansão do círculo social dentro do app. É possível seguir ou deixar de seguir qualquer perfil direto da lista.
+```
+VITE_API_URL=http://localhost:8000/api
+```
 
-### Criar Post
+Quando a variável não é definida, o cliente HTTP em [src/services/api.js](src/services/api.js) usa `http://localhost:8000/api` como fallback.
 
-Área dedicada à publicação de novas fotos. O usuário escolhe uma imagem do dispositivo, vê uma prévia em tempo real e escreve uma legenda antes de publicar. Existem limites razoáveis para o tamanho do arquivo e o tamanho da legenda, garantindo que a experiência continue fluida para todos.
+### Docker
 
-Ao concluir, a publicação aparece imediatamente no feed.
+O projeto tem um build multi-stage ([Dockerfile](Dockerfile)) que gera os assets com Node e serve o `dist/` via Nginx. Para subir com Docker Compose:
 
-### Perfil
+```bash
+docker compose up --build
+```
 
-Cada usuário tem uma página de perfil que reúne:
+O serviço fica exposto em `http://localhost:3000` ([compose.yaml](compose.yaml)). Passe `VITE_API_URL` para o build quando a API não estiver em `localhost:8000`.
 
-- foto, nome, username e bio
-- contadores de publicações, seguidores e seguindo
-- grade com todas as publicações já feitas
+## Estrutura do código
 
-É possível visitar o perfil de qualquer outra pessoa e, a partir dele, seguir, deixar de seguir ou explorar o conteúdo publicado.
+```
+src/
+  assets/styles/      tema e variáveis CSS globais
+  components/
+    feed/             PostCard
+    layout/           AppShell, AppIcon
+    profile/          ProfileAvatar
+  composables/        useAuth, useFeed (wrappers sobre os stores)
+  layouts/            AppLayout (área autenticada), AuthLayout (login/cadastro)
+  router/             rotas + guards de autenticação
+  services/           clientes HTTP por domínio
+  stores/             Pinia: auth, feed
+  views/
+    app/              Feed, CreatePost, Discover, PostDetails, Profile,
+                      EditProfile, ProfileConnections
+    auth/             Login, Register
+    NotFoundView
+  App.vue             raiz (apenas <RouterView/>)
+  main.js             bootstrap: Pinia, Router, configuração do axios
+```
 
-### Editar Perfil
+## Camada de serviços
 
-Uma tela exclusiva para o dono da conta, onde é possível atualizar nome, username, bio e foto de perfil. As alterações são refletidas imediatamente em toda a aplicação.
+Todo acesso à API é centralizado em [src/services/](src/services/). O módulo [api.js](src/services/api.js) cria a instância Axios, injeta o token JWT no header `Authorization: Bearer …` e dispara `clearSession()` no `auth` store quando a API responde com `401`. Também expõe o helper `extractErrorMessage` para traduzir respostas de erro da API em mensagens amigáveis.
 
-### Seguidores e Seguindo
+Serviços disponíveis:
 
-Páginas com as listas completas de quem segue e de quem é seguido por um determinado perfil. A partir dessas listas, o usuário consegue navegar entre perfis e também seguir ou deixar de seguir outras pessoas sem precisar sair da tela.
+| Arquivo | Endpoints |
+| --- | --- |
+| [auth.service.js](src/services/auth.service.js) | `POST /auth/login`, `POST /auth/register`, `POST /auth/logout`, `POST /auth/refresh`, `GET /auth/me` |
+| [users.service.js](src/services/users.service.js) | `GET /users/:username`, `PUT /users/me`, `POST /users/me/avatar`, `GET /users/search`, `GET /users/suggestions`, `GET /users/:id/posts` |
+| [posts.service.js](src/services/posts.service.js) | `POST /posts`, `GET /posts/:id`, `PUT /posts/:id`, `DELETE /posts/:id` |
+| [feed.service.js](src/services/feed.service.js) | `GET /feed` (paginação por cursor) |
+| [likes.service.js](src/services/likes.service.js) | `POST /posts/:id/like`, `DELETE /posts/:id/unlike`, `GET /posts/:id/likes` |
+| [comments.service.js](src/services/comments.service.js) | `GET/POST /posts/:id/comments`, `PUT/DELETE /comments/:id` |
+| [follows.service.js](src/services/follows.service.js) | `POST /users/:id/follow`, `DELETE /users/:id/unfollow`, `GET /users/:id/followers`, `GET /users/:id/following`, `GET /users/:id/is-following` |
+| [notifications.service.js](src/services/notifications.service.js) | `GET /notifications`, `GET /notifications/unread-count`, `PUT /notifications/read` |
 
-### Detalhes do Post
+## Gerenciamento de estado
 
-Ao tocar em uma publicação, o usuário é levado a uma visão ampliada, com a imagem em destaque e a thread completa de comentários. Nessa tela é possível:
+O estado global fica em dois stores Pinia:
 
-- ler todos os comentários, com opção de carregar mais
-- adicionar novos comentários
-- apagar o próprio comentário
-- apagar a publicação, quando o usuário é o autor
+- [stores/auth.js](src/stores/auth.js) — token, usuário autenticado, hidratação inicial (revalida o token via `GET /auth/me`), login/cadastro/logout e atualização do perfil.
+- [stores/feed.js](src/stores/feed.js) — lista de posts do feed com paginação por cursor, criação/remoção de posts, curtidas e contagem de comentários.
 
-### Página 404
+Os composables [useAuth](src/composables/useAuth.js) e [useFeed](src/composables/useFeed.js) expõem refs reativas (via `storeToRefs`) e as ações dos stores às views. Estados transitórios (campos de formulário, previews, mensagens momentâneas) continuam locais em cada view.
 
-Se o usuário acessar um endereço inexistente, uma tela amigável indica que o conteúdo não foi encontrado e oferece um caminho de volta para a navegação.
+## Roteamento e autenticação
 
-## Experiência do Usuário
+As rotas estão definidas em [router/index.js](src/router/index.js), divididas em dois layouts:
 
-O projeto dá atenção especial a detalhes que tornam o uso mais agradável:
+- **`AppLayout`** (`meta.requiresAuth`): `/feed`, `/criar`, `/descobrir`, `/posts/:postId`, `/perfil`, `/perfil/editar`, `/perfil/lista/:type`.
+- **`AuthLayout`** (`meta.requiresGuest`): `/login`, `/cadastro`.
 
-- interface responsiva, pensada para celular e desktop
-- feedback visual imediato em curtidas, comentários e publicações
-- navegação protegida, garantindo que conteúdo pessoal só seja acessível após o login
-- tema visual próprio, inspirado na estética limpa das redes sociais modernas
+O `beforeEach` global hidrata a sessão na primeira navegação, redireciona para `/login` quando a rota exige autenticação e devolve o usuário logado ao feed caso tente acessar telas de convidado. Rotas desconhecidas caem em [NotFoundView](src/views/NotFoundView.vue).
+
+## Telas principais
+
+- **Feed** — lista posts da rede do usuário com paginação por cursor e botão "Mostrar mais posts". Curtidas e envio de comentários atualizam o store imediatamente.
+- **Criar Post** — tela de upload com preview da imagem, campo de legenda (limite de `POST_CAPTION_MAX_LENGTH = 2200`) e botão de publicar. A imagem é validada no cliente (JPG/PNG/WEBP, até 5 MB) e enviada via `multipart/form-data`; assim que a API confirma a criação, a publicação entra no topo do feed.
+- **Descobrir** — lista sugestões de contas (`GET /users/suggestions`) com ação de seguir direto do card.
+- **Detalhes do Post** — a tela individual de post exibe imagem, legenda, autor, data, contagem de curtidas e comentários em um layout dedicado. Os comentários aparecem paginados com botão de carregar mais, seguem aceitando novos envios na própria tela e, quando o post pertence ao usuário autenticado, a interface também libera a ação de deletar a publicação.
+- **Perfil** — avatar, bio, contadores (posts/seguidores/seguindo), grade de posts do usuário, botão de seguir/deixar de seguir e atalho para editar o próprio perfil.
+- **Editar Perfil** — atualiza nome, username, bio (`PUT /users/me`) e foto (`POST /users/me/avatar`).
+- **Conexões** (`/perfil/lista/:type`) — listagens paginadas de seguidores e seguidos.
+- **Login / Cadastro** — formulários que delegam para o `auth` store e já deixam a sessão ativa ao concluir.
+
+## Layout base
+
+O [AppLayout](src/layouts/AppLayout.vue) monta uma sidebar de navegação (Home, Buscar, Criar, Perfil) e, quando a rota ativa é o feed, uma coluna lateral com a identidade do usuário e sugestões de contas para seguir. A área central troca de conteúdo via `<RouterView>` e adapta o modo de exibição (`feed`, `profile`, `default`) com base no `meta.navItem` da rota.
