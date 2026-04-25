@@ -15,11 +15,6 @@ export async function logout() {
   return data
 }
 
-export async function refresh() {
-  const { data } = await api.post('/auth/refresh')
-  return data
-}
-
 export async function me() {
   const { data } = await api.get('/auth/me')
   return data

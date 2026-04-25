@@ -6,6 +6,10 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  filled: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const paths = {
@@ -48,13 +52,14 @@ const paths = {
 }
 
 const iconPaths = computed(() => paths[props.name] ?? paths.home)
+const fillValue = computed(() => (props.filled ? 'currentColor' : 'none'))
 </script>
 
 <template>
   <svg
     class="app-icon"
     viewBox="0 0 24 24"
-    fill="none"
+    :fill="fillValue"
     stroke="currentColor"
     stroke-linecap="round"
     stroke-linejoin="round"

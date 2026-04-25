@@ -1,15 +1,19 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute } from 'vue-router'
-import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
+import AccountCard from '@/components/profile/AccountCard.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useFollowsStore } from '@/stores/follows'
 import * as usersService from '@/services/users.service'
 import * as followsService from '@/services/follows.service'
 import { extractErrorMessage } from '@/services/api'
 import { normalizeUser } from '@/stores/profileUtils'
+import { CONNECTION_LIST_TYPES, ROUTE_NAMES, isConnectionListType } from '@/router/routeNames'
 
 const route = useRoute()
-const { currentUser } = useAuth()
+const { currentUser } = storeToRefs(useAuthStore())
+const followsStore = useFollowsStore()
 
 const feedbackMessage = ref('')
 const loadError = ref('')
@@ -20,56 +24,35 @@ const people = ref([])
 const totalPeople = ref(0)
 const currentPage = ref(1)
 const hasMore = ref(false)
-const viewerFollowingSet = ref(new Set())
-const pendingTargets = ref(new Set())
 
 const selectedUsername = computed(() =>
   typeof route.query.user === 'string' ? route.query.user.trim().toLowerCase() : '',
 )
 
-const listType = computed(() => {
-  return route.params.type === 'seguidores' || route.params.type === 'seguindo'
-    ? route.params.type
-    : ''
-})
+const listType = computed(() => (isConnectionListType(route.params.type) ? route.params.type : ''))
 
 const isOwnProfile = computed(
   () => Boolean(profile.value && currentUser.value && profile.value.id === currentUser.value.id),
 )
 
-const listTitle = computed(() => (listType.value === 'seguidores' ? 'Seguidores' : 'Seguindo'))
+const listTitle = computed(() =>
+  listType.value === CONNECTION_LIST_TYPES.followers ? 'Seguidores' : 'Seguindo',
+)
 const listDescription = computed(() => {
   if (!profile.value) {
     return ''
   }
-  return listType.value === 'seguidores'
+  return listType.value === CONNECTION_LIST_TYPES.followers
     ? `Pessoas que acompanham @${profile.value.username}.`
     : `Perfis acompanhados por @${profile.value.username} no momento.`
 })
 
 const backRoute = computed(() => {
-  if (!profile.value) {
-    return { name: 'perfil' }
+  if (!profile.value || isOwnProfile.value) {
+    return { name: ROUTE_NAMES.profile }
   }
-  return isOwnProfile.value
-    ? { name: 'perfil' }
-    : { name: 'perfil', query: { user: profile.value.username } }
+  return { name: ROUTE_NAMES.profile, query: { user: profile.value.username } }
 })
-
-function isViewer(account) {
-  return Boolean(currentUser.value?.id) && currentUser.value.id === account.id
-}
-
-function isFollowing(account) {
-  return viewerFollowingSet.value.has(account.id)
-}
-
-function getProfileLink(username) {
-  if (currentUser.value?.username === username) {
-    return { name: 'perfil' }
-  }
-  return { name: 'perfil', query: { user: username } }
-}
 
 async function loadProfile() {
   loadError.value = ''
@@ -93,21 +76,6 @@ async function loadProfile() {
   }
 }
 
-async function loadViewerFollowing() {
-  if (!currentUser.value?.id) {
-    viewerFollowingSet.value = new Set()
-    return
-  }
-
-  try {
-    const response = await followsService.following(currentUser.value.id, 50, 1)
-    const ids = (response.data ?? []).map((user) => user.id)
-    viewerFollowingSet.value = new Set(ids)
-  } catch {
-    viewerFollowingSet.value = new Set()
-  }
-}
-
 async function loadPeople({ reset = true } = {}) {
   if (!profile.value || !listType.value) {
     return
@@ -117,7 +85,10 @@ async function loadPeople({ reset = true } = {}) {
 
   try {
     const page = reset ? 1 : currentPage.value + 1
-    const service = listType.value === 'seguidores' ? followsService.followers : followsService.following
+    const service =
+      listType.value === CONNECTION_LIST_TYPES.followers
+        ? followsService.followers
+        : followsService.following
     const response = await service(profile.value.id, 20, page)
     const users = (response.data ?? []).map(normalizeUser).filter(Boolean)
 
@@ -132,39 +103,20 @@ async function loadPeople({ reset = true } = {}) {
   }
 }
 
-async function handleToggleFollow(account) {
-  if (!currentUser.value?.id || isViewer(account) || pendingTargets.value.has(account.id)) {
-    return
-  }
-
-  pendingTargets.value.add(account.id)
-
-  try {
-    if (isFollowing(account)) {
-      await followsService.unfollow(account.id)
-      viewerFollowingSet.value.delete(account.id)
-      feedbackMessage.value = `Você deixou de seguir @${account.username}.`
-    } else {
-      await followsService.follow(account.id)
-      viewerFollowingSet.value.add(account.id)
-      feedbackMessage.value = `Agora você segue @${account.username}.`
-    }
-    viewerFollowingSet.value = new Set(viewerFollowingSet.value)
-  } catch (error) {
-    feedbackMessage.value = extractErrorMessage(
-      error,
-      'Não foi possível atualizar esse perfil agora.',
-    )
-  } finally {
-    pendingTargets.value.delete(account.id)
-  }
+function handleFollowChanged({ account, wasFollowing }) {
+  feedbackMessage.value = wasFollowing
+    ? `Você deixou de seguir @${account.username}.`
+    : `Agora você segue @${account.username}.`
 }
 
 watch(
   [selectedUsername, () => currentUser.value?.id],
   async () => {
     await loadProfile()
-    await Promise.all([loadViewerFollowing(), loadPeople({ reset: true })])
+    await Promise.all([
+      followsStore.hydrateFor(currentUser.value?.id),
+      loadPeople({ reset: true }),
+    ])
   },
   { immediate: true },
 )
@@ -191,39 +143,12 @@ watch(listType, () => {
     </p>
 
     <section v-if="people.length > 0" class="profile-list__grid">
-      <article
+      <AccountCard
         v-for="account in people"
         :key="account.id"
-        class="profile-list__card card border-0"
-      >
-        <RouterLink :to="getProfileLink(account.username)" class="profile-list__identity">
-          <ProfileAvatar
-            :name="account.name"
-            :username="account.username"
-            :avatar-url="account.avatarUrl"
-            :colors="account.colors"
-            size="md"
-          />
-
-          <div class="profile-list__copy">
-            <strong>{{ account.name }}</strong>
-            <span>@{{ account.username }}</span>
-            <p v-if="account.bio">{{ account.bio }}</p>
-          </div>
-        </RouterLink>
-
-        <button
-          v-if="!isViewer(account)"
-          class="btn"
-          :class="isFollowing(account) ? 'btn-outline-secondary' : 'btn-primary'"
-          type="button"
-          :disabled="pendingTargets.has(account.id)"
-          @click="handleToggleFollow(account)"
-        >
-          {{ isFollowing(account) ? 'Seguindo' : 'Seguir' }}
-        </button>
-        <span v-else class="profile-list__owner-badge">Você</span>
-      </article>
+        :account="account"
+        @follow-changed="handleFollowChanged"
+      />
 
       <div v-if="hasMore" class="profile-list__more">
         <button
@@ -240,7 +165,7 @@ watch(listType, () => {
     <section v-else-if="!isLoading" class="profile-list__empty card border-0">
       <h3>Nenhum perfil nesta lista</h3>
       <p>
-        {{ listType === 'seguidores'
+        {{ listType === CONNECTION_LIST_TYPES.followers
           ? 'Assim que alguém acompanhar esse perfil, a lista aparece aqui.'
           : 'Quando esse perfil seguir alguém, a relação passa a aparecer aqui.' }}
       </p>
@@ -255,7 +180,7 @@ watch(listType, () => {
     <div class="card-body p-4">
       <h2 class="h4 mb-3">Lista indisponível</h2>
       <p class="text-body-secondary mb-3">{{ loadError }}</p>
-      <RouterLink class="btn btn-outline-secondary" :to="{ name: 'perfil' }">
+      <RouterLink class="btn btn-outline-secondary" :to="{ name: ROUTE_NAMES.profile }">
         Voltar ao perfil
       </RouterLink>
     </div>
@@ -275,7 +200,6 @@ watch(listType, () => {
 }
 
 .profile-list__hero,
-.profile-list__card,
 .profile-list__empty {
   padding: 1.4rem;
   border-radius: 1.75rem;
@@ -305,8 +229,6 @@ watch(listType, () => {
 }
 
 .profile-list__hero p,
-.profile-list__copy span,
-.profile-list__copy p,
 .profile-list__empty p {
   margin: 0;
   color: var(--app-muted);
@@ -328,39 +250,6 @@ watch(listType, () => {
   gap: 1rem;
 }
 
-.profile-list__card {
-  display: grid;
-  gap: 1rem;
-}
-
-.profile-list__identity {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.profile-list__copy {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.profile-list__copy strong {
-  font-size: 1.05rem;
-}
-
-.profile-list__owner-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  padding: 0.7rem 1rem;
-  border-radius: 999px;
-  font-weight: 800;
-  background: var(--app-surface-soft);
-}
-
 .profile-list__more {
   display: flex;
   justify-content: center;
@@ -368,8 +257,7 @@ watch(listType, () => {
 }
 
 @media (min-width: 768px) {
-  .profile-list__hero,
-  .profile-list__card {
+  .profile-list__hero {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }

@@ -1,9 +1,13 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/layout/AppIcon.vue'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
+import { useAuthStore } from '@/stores/auth'
+import { ROUTE_NAMES } from '@/router/routeNames'
+import { formatDayMonthYear, formatRelative } from '@/utils/dates'
+import { POST_CAPTION_MAX_LENGTH } from '@/stores/feed'
 
 const props = defineProps({
   post: {
@@ -14,7 +18,7 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-like', 'submit-comment'])
 
-const { currentUser } = useAuth()
+const { currentUser } = storeToRefs(useAuthStore())
 
 const isOwnPost = computed(
   () => Boolean(currentUser.value?.id && props.post.author?.id === currentUser.value.id),
@@ -23,17 +27,13 @@ const isOwnPost = computed(
 const commentText = ref('')
 
 const postLink = computed(() => ({
-  name: 'post-detalhes',
-  params: {
-    postId: props.post.id,
-  },
+  name: ROUTE_NAMES.postDetails,
+  params: { postId: props.post.id },
 }))
 
 const authorLink = computed(() => ({
-  name: 'perfil',
-  query: {
-    user: props.post.author.username,
-  },
+  name: ROUTE_NAMES.profile,
+  query: { user: props.post.author.username },
 }))
 
 const likeLabel = computed(() => {
@@ -48,45 +48,8 @@ const commentLabel = computed(() => {
     : 'Seja o primeiro a comentar'
 })
 
-const publishedLabel = computed(() => {
-  if (!props.post.createdAt) {
-    return ''
-  }
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(props.post.createdAt))
-})
-
-const shortPublishedLabel = computed(() => {
-  if (!props.post.createdAt) {
-    return ''
-  }
-
-  const diffMs = Math.max(0, Date.now() - new Date(props.post.createdAt).getTime())
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
-  const week = 7 * day
-
-  if (diffMs < hour) {
-    return `${Math.max(1, Math.floor(diffMs / minute))} min`
-  }
-
-  if (diffMs < day) {
-    return `${Math.floor(diffMs / hour)} h`
-  }
-
-  if (diffMs < week) {
-    return `${Math.floor(diffMs / day)} d`
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(props.post.createdAt))
-})
+const publishedLabel = computed(() => formatDayMonthYear(props.post.createdAt))
+const shortPublishedLabel = computed(() => formatRelative(props.post.createdAt))
 
 const trimmedComment = computed(() => commentText.value.trim())
 const canLikePost = computed(() => !isOwnPost.value)
@@ -146,7 +109,7 @@ function handleCommentSubmit() {
             :aria-label="post.likedByMe ? 'Remover curtida' : 'Curtir post'"
             @click="emit('toggle-like', post.id)"
           >
-            <AppIcon name="heart" />
+            <AppIcon name="heart" :filled="post.likedByMe" />
           </button>
 
           <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Abrir comentários">
@@ -184,7 +147,7 @@ function handleCommentSubmit() {
           v-model="commentText"
           class="feed-post__comment-input"
           type="text"
-          maxlength="2200"
+          :maxlength="POST_CAPTION_MAX_LENGTH"
           placeholder="Adicione um comentário..."
         />
         <button class="feed-post__submit" type="submit" :disabled="!trimmedComment">

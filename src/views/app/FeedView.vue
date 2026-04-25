@@ -1,26 +1,19 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import PostCard from '@/components/feed/PostCard.vue'
-import { useFeed } from '@/composables/useFeed'
+import { useFeedStore } from '@/stores/feed'
 import { extractErrorMessage } from '@/services/api'
+
+const feedStore = useFeedStore()
+const { feedPosts, feedHasNext, feedLoaded, feedLoading } = storeToRefs(feedStore)
 
 const feedbackMessage = ref('')
 const loadError = ref('')
 
-const {
-  feedPosts,
-  feedHasNext,
-  feedLoaded,
-  feedLoading,
-  fetchFeed,
-  loadMoreFeed,
-  toggleLike,
-  addComment,
-} = useFeed()
-
 onMounted(async () => {
   try {
-    await fetchFeed({ reset: true })
+    await feedStore.fetchFeed({ reset: true })
   } catch (error) {
     loadError.value = extractErrorMessage(error, 'Não foi possível carregar o feed agora.')
   }
@@ -33,7 +26,7 @@ async function handleToggleLike(postId) {
   }
 
   try {
-    await toggleLike(post)
+    await feedStore.toggleLike(post)
     feedbackMessage.value = post.likedByMe ? 'Curtida removida.' : 'Post curtido.'
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível atualizar a curtida.')
@@ -42,7 +35,7 @@ async function handleToggleLike(postId) {
 
 async function handleSubmitComment(payload) {
   try {
-    await addComment(payload.postId, payload.text)
+    await feedStore.addComment(payload.postId, payload.text)
     feedbackMessage.value = 'Comentário enviado ao post.'
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível enviar o comentário.')
@@ -51,7 +44,7 @@ async function handleSubmitComment(payload) {
 
 async function handleLoadMore() {
   try {
-    await loadMoreFeed()
+    await feedStore.loadMoreFeed()
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível carregar mais posts.')
   }
@@ -153,10 +146,7 @@ async function handleLoadMore() {
   color: var(--app-text);
   font-weight: 700;
   background: var(--app-surface-soft);
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
 .feed-view__more:hover:not(:disabled),

@@ -1,11 +1,12 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
+import { ROUTE_NAMES } from '@/router/routeNames'
+import { useAuthStore } from '@/stores/auth'
 import { extractErrorMessage } from '@/services/api'
 
 const router = useRouter()
-const { register } = useAuth()
+const authStore = useAuthStore()
 
 const form = reactive({
   name: '',
@@ -22,23 +23,18 @@ function validateForm() {
   if (!form.name || !form.username || !form.email || !form.password || !form.confirmPassword) {
     return 'Preencha todos os campos para criar a conta.'
   }
-
   if (!/^[a-zA-Z0-9._]+$/.test(form.username)) {
     return 'Username deve conter apenas letras, números, ponto e sublinhado.'
   }
-
   if (form.username.length < 3) {
     return 'Username deve ter pelo menos 3 caracteres.'
   }
-
   if (form.password.length < 8) {
     return 'Senha deve ter no mínimo 8 caracteres.'
   }
-
   if (form.password !== form.confirmPassword) {
     return 'As senhas informadas são diferentes.'
   }
-
   return ''
 }
 
@@ -46,7 +42,6 @@ async function handleSubmit() {
   errorMessage.value = ''
 
   const validationError = validateForm()
-
   if (validationError) {
     errorMessage.value = validationError
     return
@@ -55,14 +50,14 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
-    await register({
+    await authStore.register({
       name: form.name,
       username: form.username,
       email: form.email,
       password: form.password,
       password_confirmation: form.confirmPassword,
     })
-    await router.replace('/feed')
+    await router.replace({ name: ROUTE_NAMES.feed })
   } catch (error) {
     errorMessage.value = extractErrorMessage(error, 'Não foi possível criar sua conta agora.')
   } finally {
@@ -165,7 +160,10 @@ async function handleSubmit() {
 
     <p class="text-body-secondary small mb-0 mt-4">
       Já tem conta?
-      <RouterLink class="link-primary text-decoration-none fw-semibold" to="/login">
+      <RouterLink
+        class="link-primary text-decoration-none fw-semibold"
+        :to="{ name: ROUTE_NAMES.login }"
+      >
         Entrar
       </RouterLink>
     </p>

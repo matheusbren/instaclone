@@ -1,38 +1,41 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { POST_CAPTION_MAX_LENGTH, useFeed } from '@/composables/useFeed'
+import { useFeedStore, POST_CAPTION_MAX_LENGTH } from '@/stores/feed'
+import { useImageUpload } from '@/composables/useImageUpload'
 import { extractErrorMessage } from '@/services/api'
-
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+import { ROUTE_NAMES } from '@/router/routeNames'
 
 const router = useRouter()
+const feedStore = useFeedStore()
 
-const form = reactive({
-  caption: '',
+const form = reactive({ caption: '' })
+
+const {
+  inputRef: imageInput,
+  file: selectedFile,
+  previewUrl: imagePreviewUrl,
+  fileName: selectedFileName,
+  hasFile: hasSelectedImage,
+  handleChange: handleImageChange,
+  reset: resetImage,
+} = useImageUpload({
+  maxBytes: 5 * 1024 * 1024,
+  maxSizeMessage: 'Escolha uma imagem com até 5 MB.',
 })
 
-const fileInput = ref(null)
-const selectedFile = ref(null)
-const imagePreviewUrl = ref('')
-const selectedFileName = ref('')
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const publishedPost = ref(null)
 
-const { createPost } = useFeed()
-
 const trimmedCaption = computed(() => form.caption.trim())
 const captionLength = computed(() => form.caption.length)
-const hasSelectedImage = computed(() => Boolean(selectedFile.value))
-const uploadStateLabel = computed(() => {
-  if (hasSelectedImage.value) {
-    return 'Imagem pronta para preview e publicação.'
-  }
-  return 'Aceita arquivos JPG, PNG ou WEBP com até 5 MB.'
-})
+const uploadStateLabel = computed(() =>
+  hasSelectedImage.value
+    ? 'Imagem pronta para preview e publicação.'
+    : 'Aceita arquivos JPG, PNG ou WEBP com até 5 MB.',
+)
 const publishButtonLabel = computed(() => (isSubmitting.value ? 'Publicando...' : 'Publicar post'))
 const canPublish = computed(
   () => Boolean(hasSelectedImage.value && trimmedCaption.value) && !isSubmitting.value,
@@ -46,12 +49,6 @@ const previewCaption = computed(
   () => trimmedCaption.value || 'Sua legenda aparece aqui assim que você começar a escrever.',
 )
 
-function revokePreview() {
-  if (imagePreviewUrl.value && imagePreviewUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(imagePreviewUrl.value)
-  }
-}
-
 function clearFeedback() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -59,51 +56,17 @@ function clearFeedback() {
 }
 
 function handleDraftInput() {
-  if (successMessage.value || publishedPost.value) {
-    successMessage.value = ''
-    publishedPost.value = null
-  }
-  if (errorMessage.value) {
-    errorMessage.value = ''
-  }
-}
-
-function clearSelectedImage() {
-  revokePreview()
-  selectedFile.value = null
-  imagePreviewUrl.value = ''
-  selectedFileName.value = ''
-
-  if (fileInput.value) {
-    fileInput.value.value = ''
+  if (successMessage.value || publishedPost.value || errorMessage.value) {
+    clearFeedback()
   }
 }
 
 function handleFileChange(event) {
-  const file = event.target.files?.[0]
-
-  if (!file) {
-    return
-  }
-
   clearFeedback()
-
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    clearSelectedImage()
-    errorMessage.value = 'Use uma imagem nos formatos JPG, PNG ou WEBP.'
-    return
+  const error = handleImageChange(event)
+  if (error) {
+    errorMessage.value = error
   }
-
-  if (file.size > MAX_UPLOAD_BYTES) {
-    clearSelectedImage()
-    errorMessage.value = 'Escolha uma imagem com até 5 MB.'
-    return
-  }
-
-  revokePreview()
-  selectedFile.value = file
-  selectedFileName.value = file.name
-  imagePreviewUrl.value = URL.createObjectURL(file)
 }
 
 async function handleSubmit() {
@@ -122,15 +85,14 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
-    const post = await createPost({
+    const post = await feedStore.createPost({
       image: selectedFile.value,
       caption: trimmedCaption.value,
     })
-
     publishedPost.value = post
     successMessage.value = 'Post publicado com sucesso. Ele já está no topo do seu feed.'
     form.caption = ''
-    clearSelectedImage()
+    resetImage()
   } catch (error) {
     errorMessage.value = extractErrorMessage(error, 'Não foi possível publicar o post agora.')
   } finally {
@@ -139,12 +101,8 @@ async function handleSubmit() {
 }
 
 function goToFeed() {
-  router.push({ name: 'feed' })
+  router.push({ name: ROUTE_NAMES.feed })
 }
-
-onBeforeUnmount(() => {
-  revokePreview()
-})
 </script>
 
 <template>
@@ -203,7 +161,7 @@ onBeforeUnmount(() => {
             <label class="create-post__label" for="post-image">Imagem</label>
             <input
               id="post-image"
-              ref="fileInput"
+              ref="imageInput"
               class="form-control"
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -214,7 +172,7 @@ onBeforeUnmount(() => {
 
           <div v-if="hasSelectedImage" class="create-post__secondary-actions">
             <span>{{ selectedFileName }}</span>
-            <button class="btn btn-outline-secondary btn-sm" type="button" @click="clearSelectedImage">
+            <button class="btn btn-outline-secondary btn-sm" type="button" @click="resetImage">
               Remover imagem
             </button>
           </div>
@@ -253,7 +211,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="create-post__published-actions">
-        <RouterLink class="btn btn-outline-secondary" :to="{ name: 'feed' }" @click="goToFeed">
+        <RouterLink class="btn btn-outline-secondary" :to="{ name: ROUTE_NAMES.feed }" @click="goToFeed">
           Ver no feed
         </RouterLink>
       </div>
@@ -273,6 +231,7 @@ onBeforeUnmount(() => {
 .create-post__published {
   padding: 1.4rem;
   border-radius: 1.75rem;
+  background: var(--app-surface);
 }
 
 .create-post__hero {
@@ -351,12 +310,6 @@ onBeforeUnmount(() => {
 .create-post__grid {
   display: grid;
   gap: 1rem;
-}
-
-.create-post__preview,
-.create-post__form,
-.create-post__published {
-  background: var(--app-surface);
 }
 
 .create-post__preview {

@@ -1,44 +1,42 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute } from 'vue-router'
 import AppIcon from '@/components/layout/AppIcon.vue'
-import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
+import ProfileHeader from '@/components/profile/ProfileHeader.vue'
+import ProfileSummaryCards from '@/components/profile/ProfileSummaryCards.vue'
+import ProfilePostGrid from '@/components/profile/ProfilePostGrid.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useFollowsStore } from '@/stores/follows'
 import { extractErrorMessage } from '@/services/api'
 import * as followsService from '@/services/follows.service'
 import * as usersService from '@/services/users.service'
 import { normalizePost } from '@/stores/feed'
 import { normalizeUser } from '@/stores/profileUtils'
+import { CONNECTION_LIST_TYPES, ROUTE_NAMES } from '@/router/routeNames'
 
 const route = useRoute()
-const { currentUser } = useAuth()
+const { currentUser } = storeToRefs(useAuthStore())
+const followsStore = useFollowsStore()
 
 const profile = ref(null)
 const postsList = ref([])
 const postsCount = ref(0)
-const followersList = ref([])
+const followers = ref([])
 const followersCount = ref(0)
-const followingList = ref([])
+const following = ref([])
 const followingCount = ref(0)
 const isFollowedByViewer = ref(false)
 const isLoading = ref(false)
 const loadError = ref('')
 const feedbackMessage = ref('')
-const followPending = ref(false)
 
 const selectedUsername = computed(() =>
   typeof route.query.user === 'string' ? route.query.user.trim().toLowerCase() : '',
 )
 
-const isOwnProfile = computed(() => {
-  if (!profile.value || !currentUser.value) {
-    return false
-  }
-  return profile.value.id === currentUser.value.id
-})
-
-const followButtonLabel = computed(() =>
-  isFollowedByViewer.value ? 'Deixar de seguir' : 'Seguir perfil',
+const isOwnProfile = computed(
+  () => Boolean(profile.value && currentUser.value && profile.value.id === currentUser.value.id),
 )
 
 const connectionsQuery = computed(() => {
@@ -48,21 +46,17 @@ const connectionsQuery = computed(() => {
   return { user: profile.value.username }
 })
 
-const followersPreview = computed(() => followersList.value.slice(0, 4))
-const followingPreview = computed(() => followingList.value.slice(0, 4))
 const followersRoute = computed(() => ({
-  name: 'perfil-lista',
-  params: { type: 'seguidores' },
+  name: ROUTE_NAMES.profileConnections,
+  params: { type: CONNECTION_LIST_TYPES.followers },
   query: connectionsQuery.value,
 }))
+
 const followingRoute = computed(() => ({
-  name: 'perfil-lista',
-  params: { type: 'seguindo' },
+  name: ROUTE_NAMES.profileConnections,
+  params: { type: CONNECTION_LIST_TYPES.following },
   query: connectionsQuery.value,
 }))
-const secondaryActionLabel = computed(() =>
-  isOwnProfile.value ? 'Ver conexões' : 'Ver seguidores',
-)
 
 async function loadProfile() {
   isLoading.value = true
@@ -72,23 +66,21 @@ async function loadProfile() {
   profile.value = null
   postsList.value = []
   postsCount.value = 0
-  followersList.value = []
+  followers.value = []
   followersCount.value = 0
-  followingList.value = []
+  following.value = []
   followingCount.value = 0
   isFollowedByViewer.value = false
 
   try {
-    let targetUser
-
-    if (selectedUsername.value) {
-      const raw = await usersService.getByUsername(selectedUsername.value)
-      targetUser = normalizeUser(raw)
-    } else if (currentUser.value?.username) {
-      const raw = await usersService.getByUsername(currentUser.value.username)
-      targetUser = normalizeUser(raw)
+    const targetUsername = selectedUsername.value || currentUser.value?.username
+    if (!targetUsername) {
+      loadError.value = 'Perfil não encontrado.'
+      return
     }
 
+    const raw = await usersService.getByUsername(targetUsername)
+    const targetUser = normalizeUser(raw)
     if (!targetUser) {
       loadError.value = 'Perfil não encontrado.'
       return
@@ -105,11 +97,11 @@ async function loadProfile() {
     postsList.value = (postsResp.data ?? []).map(normalizePost).filter(Boolean)
     postsCount.value = Number(postsResp.total ?? postsList.value.length)
 
-    followersList.value = (followersResp.data ?? []).map(normalizeUser).filter(Boolean)
-    followersCount.value = Number(followersResp.total ?? followersList.value.length)
+    followers.value = (followersResp.data ?? []).map(normalizeUser).filter(Boolean)
+    followersCount.value = Number(followersResp.total ?? followers.value.length)
 
-    followingList.value = (followingResp.data ?? []).map(normalizeUser).filter(Boolean)
-    followingCount.value = Number(followingResp.total ?? followingList.value.length)
+    following.value = (followingResp.data ?? []).map(normalizeUser).filter(Boolean)
+    followingCount.value = Number(followingResp.total ?? following.value.length)
 
     if (currentUser.value?.id && currentUser.value.id !== targetUser.id) {
       try {
@@ -127,20 +119,18 @@ async function loadProfile() {
 }
 
 async function handleToggleFollow() {
-  if (!profile.value || isOwnProfile.value || followPending.value) {
+  if (!profile.value || isOwnProfile.value || followsStore.isPending(profile.value.id)) {
     return
   }
 
-  followPending.value = true
-
   try {
     if (isFollowedByViewer.value) {
-      await followsService.unfollow(profile.value.id)
+      await followsStore.unfollow(profile.value.id)
       isFollowedByViewer.value = false
       followersCount.value = Math.max(0, followersCount.value - 1)
       feedbackMessage.value = `Você deixou de seguir @${profile.value.username}.`
     } else {
-      await followsService.follow(profile.value.id)
+      await followsStore.follow(profile.value.id)
       isFollowedByViewer.value = true
       followersCount.value = followersCount.value + 1
       feedbackMessage.value = `Agora você segue @${profile.value.username}.`
@@ -150,8 +140,6 @@ async function handleToggleFollow() {
       error,
       'Não foi possível atualizar o relacionamento agora.',
     )
-  } finally {
-    followPending.value = false
   }
 }
 
@@ -181,133 +169,27 @@ watch(
       {{ feedbackMessage }}
     </p>
 
-    <section class="profile-header">
-      <div class="profile-header__avatar">
-        <ProfileAvatar
-          :name="profile.name"
-          :username="profile.username"
-          :avatar-url="profile.avatarUrl"
-          :colors="profile.colors"
-          size="xl"
-        />
-      </div>
+    <ProfileHeader
+      :profile="profile"
+      :is-own-profile="isOwnProfile"
+      :is-following="isFollowedByViewer"
+      :follow-pending="followsStore.isPending(profile.id)"
+      :posts-count="postsCount"
+      :followers-count="followersCount"
+      :following-count="followingCount"
+      :followers-route="followersRoute"
+      :following-route="followingRoute"
+      @toggle-follow="handleToggleFollow"
+    />
 
-      <div class="profile-header__content">
-        <div class="profile-header__identity">
-          <div class="profile-header__title-row">
-            <h1>{{ profile.username }}</h1>
-
-            <RouterLink
-              v-if="isOwnProfile"
-              class="profile-header__settings"
-              :to="{ name: 'perfil-editar' }"
-              aria-label="Editar configurações do perfil"
-            >
-              <AppIcon name="settings" />
-            </RouterLink>
-          </div>
-
-          <div class="profile-header__actions">
-            <RouterLink
-              v-if="isOwnProfile"
-              class="btn btn-outline-secondary"
-              :to="{ name: 'perfil-editar' }"
-            >
-              Editar perfil
-            </RouterLink>
-
-            <button
-              v-else
-              class="btn btn-outline-secondary"
-              type="button"
-              :disabled="followPending"
-              @click="handleToggleFollow"
-            >
-              {{ followButtonLabel }}
-            </button>
-
-            <RouterLink class="btn btn-outline-secondary" :to="followersRoute">
-              {{ secondaryActionLabel }}
-            </RouterLink>
-          </div>
-        </div>
-
-        <div class="profile-header__stats">
-          <article>
-            <strong>{{ postsCount }}</strong>
-            <span>publicações</span>
-          </article>
-
-          <RouterLink class="profile-header__stat-link" :to="followersRoute">
-            <strong>{{ followersCount }}</strong>
-            <span>seguidores</span>
-          </RouterLink>
-
-          <RouterLink class="profile-header__stat-link" :to="followingRoute">
-            <strong>{{ followingCount }}</strong>
-            <span>seguindo</span>
-          </RouterLink>
-        </div>
-
-        <div class="profile-header__bio">
-          <strong>{{ profile.name }}</strong>
-          <p v-if="profile.bio">{{ profile.bio }}</p>
-          <p v-else class="profile-header__bio-muted">
-            {{ isOwnProfile
-              ? 'Adicione uma bio para completar seu perfil.'
-              : 'Este perfil ainda não escreveu uma bio.' }}
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="profile-summary">
-      <RouterLink class="profile-summary__card" :to="followersRoute">
-        <div class="profile-summary__avatars">
-          <ProfileAvatar
-            v-for="account in followersPreview"
-            :key="`followers-${account.id}`"
-            :name="account.name"
-            :username="account.username"
-            :avatar-url="account.avatarUrl"
-            :colors="account.colors"
-            size="sm"
-            class="profile-summary__avatar"
-          />
-          <span v-if="followersPreview.length === 0" class="profile-summary__placeholder">
-            <AppIcon name="profile" />
-          </span>
-        </div>
-
-        <div class="profile-summary__copy">
-          <span>Seguidores</span>
-          <strong>{{ followersCount }} pessoas acompanham este perfil</strong>
-        </div>
-      </RouterLink>
-
-      <RouterLink class="profile-summary__card" :to="followingRoute">
-        <div class="profile-summary__avatars">
-          <ProfileAvatar
-            v-for="account in followingPreview"
-            :key="`following-${account.id}`"
-            :name="account.name"
-            :username="account.username"
-            :avatar-url="account.avatarUrl"
-            :colors="account.colors"
-            size="sm"
-            class="profile-summary__avatar"
-          />
-          <span v-if="followingPreview.length === 0" class="profile-summary__placeholder">
-            <AppIcon name="discover" />
-          </span>
-        </div>
-
-        <div class="profile-summary__copy">
-          <span>Seguindo</span>
-          <strong>{{ followingCount }} contas no radar</strong>
-        </div>
-      </RouterLink>
-    </section>
+    <ProfileSummaryCards
+      :followers="followers"
+      :following="following"
+      :followers-count="followersCount"
+      :following-count="followingCount"
+      :followers-route="followersRoute"
+      :following-route="followingRoute"
+    />
 
     <nav class="profile-tabs" aria-label="Seções do perfil">
       <span class="profile-tabs__item is-active">
@@ -326,21 +208,7 @@ watch(
       </RouterLink>
     </nav>
 
-    <section v-if="postsList.length > 0" class="profile-grid">
-      <RouterLink
-        v-for="post in postsList"
-        :key="post.id"
-        :to="{ name: 'post-detalhes', params: { postId: post.id } }"
-        class="profile-grid__item"
-      >
-        <img :src="post.imageUrl" :alt="post.imageAlt" loading="lazy" />
-
-        <div class="profile-grid__overlay">
-          <span>{{ post.likesCount }} curtidas</span>
-          <span>{{ post.commentsCount }} comentários</span>
-        </div>
-      </RouterLink>
-    </section>
+    <ProfilePostGrid v-if="postsList.length > 0" :posts="postsList" />
 
     <section v-else class="profile-empty card border-0">
       <h3>Nenhum post por aqui ainda</h3>
@@ -352,7 +220,7 @@ watch(
       <RouterLink
         v-if="isOwnProfile"
         class="btn btn-primary align-self-start"
-        :to="{ name: 'criar' }"
+        :to="{ name: ROUTE_NAMES.createPost }"
       >
         Criar primeiro post
       </RouterLink>
@@ -381,129 +249,6 @@ watch(
   color: var(--app-text);
   font-weight: 600;
   background: var(--app-surface-soft);
-}
-
-.profile-header {
-  display: grid;
-  gap: 1.5rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid var(--app-border);
-}
-
-.profile-header__avatar {
-  display: flex;
-  justify-content: center;
-}
-
-.profile-header__content,
-.profile-header__identity,
-.profile-header__bio,
-.profile-summary__copy {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.profile-header__title-row,
-.profile-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.profile-header__title-row h1 {
-  margin: 0;
-  color: var(--app-text);
-  font-size: clamp(1.7rem, 4vw, 2.1rem);
-  font-weight: 600;
-}
-
-.profile-header__settings {
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border: 1px solid var(--app-border);
-  border-radius: 999px;
-  color: var(--app-text);
-  background: var(--app-surface-soft);
-  text-decoration: none;
-}
-
-.profile-header__stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-}
-
-.profile-header__stats article,
-.profile-header__stat-link {
-  display: grid;
-  gap: 0.2rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.profile-header__stats strong {
-  color: var(--app-text);
-  font-size: 1.12rem;
-}
-
-.profile-header__stats span,
-.profile-header__bio p,
-.profile-header__bio-muted,
-.profile-summary__copy span,
-.profile-empty p {
-  color: var(--app-muted);
-  line-height: 1.7;
-}
-
-.profile-header__bio strong {
-  color: var(--app-text);
-  font-size: 0.98rem;
-}
-
-.profile-summary {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.profile-summary__card {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 1rem;
-  border: 1px solid var(--app-border);
-  border-radius: 1rem;
-  color: inherit;
-  text-decoration: none;
-  background: var(--app-surface);
-}
-
-.profile-summary__avatars {
-  display: flex;
-  align-items: center;
-  min-width: 7rem;
-}
-
-.profile-summary__avatar + .profile-summary__avatar {
-  margin-left: -0.55rem;
-}
-
-.profile-summary__placeholder {
-  display: grid;
-  place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  border: 1px solid var(--app-border);
-  border-radius: 50%;
-  color: var(--app-muted);
-  background: var(--app-surface-soft);
-}
-
-.profile-summary__copy strong {
-  color: var(--app-text);
-  font-size: 0.95rem;
 }
 
 .profile-tabs {
@@ -535,51 +280,6 @@ watch(
   color: var(--app-text);
 }
 
-.profile-grid {
-  display: grid;
-  gap: 0.2rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.profile-grid__item {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  aspect-ratio: 1 / 1;
-  color: inherit;
-  text-decoration: none;
-  background: var(--app-surface-soft);
-}
-
-.profile-grid__item img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.profile-grid__overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.2rem;
-  padding: 1rem;
-  color: #fff;
-  font-size: 0.92rem;
-  font-weight: 700;
-  text-align: center;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.74) 100%);
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-
-.profile-grid__item:hover .profile-grid__overlay,
-.profile-grid__item:focus-visible .profile-grid__overlay {
-  opacity: 1;
-}
-
 .profile-empty {
   display: grid;
   gap: 0.8rem;
@@ -593,17 +293,8 @@ watch(
 
 .profile-empty p {
   margin: 0;
-}
-
-@media (min-width: 768px) {
-  .profile-header {
-    grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 1.2fr);
-    align-items: start;
-  }
-
-  .profile-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  color: var(--app-muted);
+  line-height: 1.7;
 }
 
 @media (max-width: 767.98px) {
@@ -611,14 +302,6 @@ watch(
     gap: 0.85rem;
     overflow-x: auto;
     justify-content: flex-start;
-  }
-
-  .profile-grid__overlay {
-    opacity: 1;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.78rem;
   }
 }
 </style>

@@ -1,14 +1,15 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
+import { storeToRefs } from 'pinia'
+import AccountCard from '@/components/profile/AccountCard.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useFollowsStore } from '@/stores/follows'
 import * as usersService from '@/services/users.service'
-import * as followsService from '@/services/follows.service'
 import { extractErrorMessage } from '@/services/api'
 import { normalizeUser } from '@/stores/profileUtils'
 
-const { currentUser } = useAuth()
+const { currentUser } = storeToRefs(useAuthStore())
+const followsStore = useFollowsStore()
 
 const people = ref([])
 const totalPeople = ref(0)
@@ -17,35 +18,6 @@ const hasMore = ref(false)
 const isLoading = ref(false)
 const loadError = ref('')
 const feedbackMessage = ref('')
-
-const viewerFollowingSet = ref(new Set())
-const pendingTargets = ref(new Set())
-
-function isFollowing(account) {
-  return viewerFollowingSet.value.has(account.id)
-}
-
-function getProfileLink(username) {
-  if (currentUser.value?.username === username) {
-    return { name: 'perfil' }
-  }
-  return { name: 'perfil', query: { user: username } }
-}
-
-async function loadViewerFollowing() {
-  if (!currentUser.value?.id) {
-    viewerFollowingSet.value = new Set()
-    return
-  }
-
-  try {
-    const response = await followsService.following(currentUser.value.id, 50, 1)
-    const ids = (response.data ?? []).map((user) => user.id)
-    viewerFollowingSet.value = new Set(ids)
-  } catch {
-    viewerFollowingSet.value = new Set()
-  }
-}
 
 async function loadPeople({ reset = true } = {}) {
   isLoading.value = true
@@ -67,36 +39,17 @@ async function loadPeople({ reset = true } = {}) {
   }
 }
 
-async function handleToggleFollow(account) {
-  if (!currentUser.value?.id || pendingTargets.value.has(account.id)) {
-    return
-  }
-
-  pendingTargets.value.add(account.id)
-
-  try {
-    if (isFollowing(account)) {
-      await followsService.unfollow(account.id)
-      viewerFollowingSet.value.delete(account.id)
-      feedbackMessage.value = `Você deixou de seguir @${account.username}.`
-    } else {
-      await followsService.follow(account.id)
-      viewerFollowingSet.value.add(account.id)
-      feedbackMessage.value = `Agora você segue @${account.username}.`
-    }
-    viewerFollowingSet.value = new Set(viewerFollowingSet.value)
-  } catch (error) {
-    feedbackMessage.value = extractErrorMessage(
-      error,
-      'Não foi possível atualizar esse perfil agora.',
-    )
-  } finally {
-    pendingTargets.value.delete(account.id)
-  }
+function handleFollowChanged({ account, wasFollowing }) {
+  feedbackMessage.value = wasFollowing
+    ? `Você deixou de seguir @${account.username}.`
+    : `Agora você segue @${account.username}.`
 }
 
 onMounted(async () => {
-  await Promise.all([loadViewerFollowing(), loadPeople({ reset: true })])
+  await Promise.all([
+    followsStore.hydrateFor(currentUser.value?.id),
+    loadPeople({ reset: true }),
+  ])
 })
 </script>
 
@@ -126,37 +79,12 @@ onMounted(async () => {
     </p>
 
     <section v-if="people.length > 0" class="discover__grid">
-      <article
+      <AccountCard
         v-for="account in people"
         :key="account.id"
-        class="discover__card card border-0"
-      >
-        <RouterLink :to="getProfileLink(account.username)" class="discover__identity">
-          <ProfileAvatar
-            :name="account.name"
-            :username="account.username"
-            :avatar-url="account.avatarUrl"
-            :colors="account.colors"
-            size="md"
-          />
-
-          <div class="discover__copy">
-            <strong>{{ account.name }}</strong>
-            <span>@{{ account.username }}</span>
-            <p v-if="account.bio">{{ account.bio }}</p>
-          </div>
-        </RouterLink>
-
-        <button
-          class="btn"
-          :class="isFollowing(account) ? 'btn-outline-secondary' : 'btn-primary'"
-          type="button"
-          :disabled="pendingTargets.has(account.id)"
-          @click="handleToggleFollow(account)"
-        >
-          {{ isFollowing(account) ? 'Seguindo' : 'Seguir' }}
-        </button>
-      </article>
+        :account="account"
+        @follow-changed="handleFollowChanged"
+      />
     </section>
 
     <section v-else-if="!isLoading" class="discover__empty card border-0">
@@ -188,7 +116,6 @@ onMounted(async () => {
 }
 
 .discover__hero,
-.discover__card,
 .discover__empty {
   padding: 1.4rem;
   border-radius: 1.75rem;
@@ -218,8 +145,6 @@ onMounted(async () => {
 }
 
 .discover__hero p,
-.discover__copy span,
-.discover__copy p,
 .discover__empty p {
   margin: 0;
   color: var(--app-muted);
@@ -260,28 +185,6 @@ onMounted(async () => {
   gap: 1rem;
 }
 
-.discover__card {
-  display: grid;
-  gap: 1rem;
-}
-
-.discover__identity {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.discover__copy {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.discover__copy strong {
-  font-size: 1.05rem;
-}
-
 .discover__more {
   display: flex;
   justify-content: center;
@@ -289,8 +192,7 @@ onMounted(async () => {
 }
 
 @media (min-width: 768px) {
-  .discover__hero,
-  .discover__card {
+  .discover__hero {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }

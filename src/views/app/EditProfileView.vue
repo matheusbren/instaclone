@@ -1,17 +1,20 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   PROFILE_BIO_MAX_LENGTH,
   PROFILE_NAME_MAX_LENGTH,
   PROFILE_USERNAME_MAX_LENGTH,
-  useAuth,
-} from '@/composables/useAuth'
+} from '@/stores/profileUtils'
+import { useImageUpload } from '@/composables/useImageUpload'
 import { extractErrorMessage } from '@/services/api'
+import { ROUTE_NAMES } from '@/router/routeNames'
 
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-const MAX_AVATAR_UPLOAD_BYTES = 2 * 1024 * 1024
+const authStore = useAuthStore()
+const { currentUser } = storeToRefs(authStore)
 
 const form = reactive({
   name: '',
@@ -19,16 +22,24 @@ const form = reactive({
   bio: '',
 })
 
-const fileInput = ref(null)
-const selectedAvatarFile = ref(null)
-const avatarPreviewUrl = ref('')
-const selectedFileName = ref('')
+const {
+  inputRef: photoInput,
+  file: selectedAvatarFile,
+  previewUrl: avatarPreviewUrl,
+  fileName: selectedFileName,
+  hasFile: hasPendingAvatar,
+  handleChange: handleAvatarChange,
+  reset: resetAvatar,
+} = useImageUpload({
+  maxBytes: 2 * 1024 * 1024,
+  invalidTypeMessage: 'Use uma foto nos formatos JPG, PNG ou WEBP.',
+  maxSizeMessage: 'Escolha uma foto com até 2 MB.',
+})
+
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const hasLoadedAccount = ref(false)
-
-const { currentUser, updateProfile, uploadAvatar } = useAuth()
 
 const trimmedName = computed(() => form.name.trim())
 const trimmedUsername = computed(() => form.username.trim().toLowerCase())
@@ -48,8 +59,6 @@ const hasPendingFieldChanges = computed(() => {
     trimmedBio.value !== (currentUser.value.bio ?? '')
   )
 })
-
-const hasPendingAvatar = computed(() => Boolean(selectedAvatarFile.value))
 
 const canSubmit = computed(
   () =>
@@ -80,12 +89,6 @@ watch(
   { immediate: true },
 )
 
-function revokePreview() {
-  if (avatarPreviewUrl.value && avatarPreviewUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(avatarPreviewUrl.value)
-  }
-}
-
 function clearFeedback() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -97,44 +100,12 @@ function handleFieldInput() {
   }
 }
 
-function resetFileInput() {
-  selectedFileName.value = ''
-  if (fileInput.value) {
-    fileInput.value.value = ''
-  }
-}
-
-function clearSelectedAvatar() {
-  revokePreview()
-  avatarPreviewUrl.value = ''
-  selectedAvatarFile.value = null
-  resetFileInput()
-}
-
 function handleFileChange(event) {
-  const file = event.target.files?.[0]
-  if (!file) {
-    return
-  }
-
   clearFeedback()
-
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    resetFileInput()
-    errorMessage.value = 'Use uma foto nos formatos JPG, PNG ou WEBP.'
-    return
+  const error = handleAvatarChange(event)
+  if (error) {
+    errorMessage.value = error
   }
-
-  if (file.size > MAX_AVATAR_UPLOAD_BYTES) {
-    resetFileInput()
-    errorMessage.value = 'Escolha uma foto com até 2 MB.'
-    return
-  }
-
-  revokePreview()
-  selectedAvatarFile.value = file
-  selectedFileName.value = file.name
-  avatarPreviewUrl.value = URL.createObjectURL(file)
 }
 
 async function handleSubmit() {
@@ -159,7 +130,7 @@ async function handleSubmit() {
 
   try {
     if (hasPendingFieldChanges.value) {
-      await updateProfile({
+      await authStore.updateProfile({
         name: trimmedName.value,
         username: trimmedUsername.value,
         bio: trimmedBio.value,
@@ -167,8 +138,8 @@ async function handleSubmit() {
     }
 
     if (hasPendingAvatar.value) {
-      await uploadAvatar(selectedAvatarFile.value)
-      clearSelectedAvatar()
+      await authStore.uploadAvatar(selectedAvatarFile.value)
+      resetAvatar()
     }
 
     successMessage.value = 'Perfil atualizado com sucesso.'
@@ -178,10 +149,6 @@ async function handleSubmit() {
     isSubmitting.value = false
   }
 }
-
-onBeforeUnmount(() => {
-  revokePreview()
-})
 </script>
 
 <template>
@@ -196,7 +163,7 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <RouterLink class="btn btn-outline-secondary" :to="{ name: 'perfil' }">
+      <RouterLink class="btn btn-outline-secondary" :to="{ name: ROUTE_NAMES.profile }">
         Voltar ao perfil
       </RouterLink>
     </section>
@@ -283,7 +250,7 @@ onBeforeUnmount(() => {
             <label class="edit-profile__label" for="profile-photo">Foto</label>
             <input
               id="profile-photo"
-              ref="fileInput"
+              ref="photoInput"
               class="form-control"
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -302,7 +269,7 @@ onBeforeUnmount(() => {
               class="btn btn-outline-secondary"
               type="button"
               :disabled="!selectedFileName"
-              @click="clearSelectedAvatar"
+              @click="resetAvatar"
             >
               Remover seleção de foto
             </button>
@@ -318,7 +285,7 @@ onBeforeUnmount(() => {
       <p class="text-body-secondary mb-3">
         Não encontrei uma conta ativa para editar agora. Volte ao perfil e tente novamente.
       </p>
-      <RouterLink class="btn btn-outline-secondary" :to="{ name: 'perfil' }">
+      <RouterLink class="btn btn-outline-secondary" :to="{ name: ROUTE_NAMES.profile }">
         Voltar ao perfil
       </RouterLink>
     </div>

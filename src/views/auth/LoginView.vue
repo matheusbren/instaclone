@@ -1,12 +1,13 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
+import { ROUTE_NAMES } from '@/router/routeNames'
+import { useAuthStore } from '@/stores/auth'
 import { extractErrorMessage } from '@/services/api'
 
 const route = useRoute()
 const router = useRouter()
-const { login } = useAuth()
+const authStore = useAuthStore()
 
 const form = reactive({
   email: '',
@@ -21,11 +22,9 @@ const redirectPath = computed(() => {
   return typeof value === 'string' && value.startsWith('/') ? value : '/feed'
 })
 
-const helperMessage = computed(() => {
-  return redirectPath.value !== '/feed'
-    ? 'Faça login para acessar a página solicitada.'
-    : ''
-})
+const helperMessage = computed(() =>
+  redirectPath.value !== '/feed' ? 'Faça login para acessar a página solicitada.' : '',
+)
 
 async function handleSubmit() {
   errorMessage.value = ''
@@ -38,7 +37,7 @@ async function handleSubmit() {
   isSubmitting.value = true
 
   try {
-    await login({
+    await authStore.login({
       email: form.email,
       password: form.password,
     })
@@ -106,7 +105,10 @@ async function handleSubmit() {
 
     <p class="text-body-secondary small mb-0 mt-4">
       Não tem conta?
-      <RouterLink class="link-primary text-decoration-none fw-semibold" to="/cadastro">
+      <RouterLink
+        class="link-primary text-decoration-none fw-semibold"
+        :to="{ name: ROUTE_NAMES.register }"
+      >
         Criar agora
       </RouterLink>
     </p>

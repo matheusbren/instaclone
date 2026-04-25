@@ -3,25 +3,17 @@ import * as feedService from '@/services/feed.service'
 import * as postsService from '@/services/posts.service'
 import * as likesService from '@/services/likes.service'
 import * as commentsService from '@/services/comments.service'
-import { normalizeUser } from '@/stores/profileUtils'
+import { defaultAuthor, normalizeUser } from '@/stores/profileUtils'
 
 export const POST_CAPTION_MAX_LENGTH = 2200
+export const FEED_PAGE_SIZE = 10
 
 export function normalizePost(rawPost) {
   if (!rawPost || typeof rawPost !== 'object') {
     return null
   }
 
-  const author = normalizeUser(rawPost.user) || {
-    id: rawPost.user_id ?? null,
-    name: 'Usuário',
-    username: 'usuario',
-    email: '',
-    bio: '',
-    avatarUrl: '',
-    colors: ['#f05a28', '#ff9f59'],
-  }
-
+  const author = normalizeUser(rawPost.user) || defaultAuthor(rawPost.user_id)
   const caption = rawPost.caption ?? ''
 
   return {
@@ -37,6 +29,22 @@ export function normalizePost(rawPost) {
     likedByMe: Boolean(rawPost.liked_by_me ?? rawPost.likedByMe ?? false),
     createdAt: rawPost.created_at ?? rawPost.createdAt ?? null,
     updatedAt: rawPost.updated_at ?? rawPost.updatedAt ?? null,
+  }
+}
+
+export function normalizeComment(rawComment) {
+  if (!rawComment || typeof rawComment !== 'object') {
+    return null
+  }
+
+  const author = normalizeUser(rawComment.user) || defaultAuthor(rawComment.user_id)
+
+  return {
+    id: rawComment.id,
+    body: rawComment.body ?? '',
+    author,
+    authorId: rawComment.user_id ?? author.id,
+    createdAt: rawComment.created_at ?? rawComment.createdAt ?? null,
   }
 }
 
@@ -58,16 +66,10 @@ export const useFeedStore = defineStore('feed', {
 
       try {
         const cursor = reset ? null : this.feedCursor
-        const response = await feedService.getFeed({ cursor, perPage: 10 })
-
+        const response = await feedService.getFeed({ cursor, perPage: FEED_PAGE_SIZE })
         const normalized = (response.data ?? []).map(normalizePost).filter(Boolean)
 
-        if (reset) {
-          this.feedPosts = normalized
-        } else {
-          this.feedPosts = [...this.feedPosts, ...normalized]
-        }
-
+        this.feedPosts = reset ? normalized : [...this.feedPosts, ...normalized]
         this.feedCursor = response.next_cursor ?? null
         this.feedHasNext = Boolean(response.next_cursor)
         this.feedLoaded = true

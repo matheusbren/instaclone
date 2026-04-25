@@ -1,33 +1,33 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/layout/AppIcon.vue'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
-import * as followsService from '@/services/follows.service'
+import { useAuthStore } from '@/stores/auth'
+import { useFollowsStore } from '@/stores/follows'
 import * as usersService from '@/services/users.service'
 import { normalizeUser } from '@/stores/profileUtils'
+import { ROUTE_NAMES } from '@/router/routeNames'
 
 const route = useRoute()
 const router = useRouter()
-const { currentUser, logout } = useAuth()
+const authStore = useAuthStore()
+const followsStore = useFollowsStore()
+const { currentUser } = storeToRefs(authStore)
 
 const navItems = [
-  { name: 'feed', label: 'Home', icon: 'home' },
-  { name: 'descobrir', label: 'Buscar', icon: 'search' },
-  { name: 'criar', label: 'Criar', icon: 'create' },
-  { name: 'perfil', label: 'Perfil', icon: 'profile' },
+  { name: ROUTE_NAMES.feed, key: 'feed', label: 'Home', icon: 'home' },
+  { name: ROUTE_NAMES.discover, key: 'discover', label: 'Buscar', icon: 'search' },
+  { name: ROUTE_NAMES.createPost, key: 'create', label: 'Criar', icon: 'create' },
+  { name: ROUTE_NAMES.profile, key: 'profile', label: 'Perfil', icon: 'profile' },
 ]
 
-const activeNavName = computed(() => route.meta.navItem ?? route.name)
-const isFeedRoute = computed(() => activeNavName.value === 'feed')
+const activeNavKey = computed(() => route.meta.navItem ?? '')
+const isFeedRoute = computed(() => activeNavKey.value === 'feed')
 const contentMode = computed(() => {
-  if (isFeedRoute.value) {
-    return 'feed'
-  }
-  if (activeNavName.value === 'perfil') {
-    return 'profile'
-  }
+  if (isFeedRoute.value) return 'feed'
+  if (activeNavKey.value === 'profile') return 'profile'
   return 'default'
 })
 const accountHandle = computed(() =>
@@ -37,29 +37,12 @@ const accountName = computed(() => currentUser.value?.name || 'Sua conta')
 
 const railSuggestions = ref([])
 const loadingSuggestions = ref(false)
-const followPendingIds = ref(new Set())
 
 function getProfileRoute(username) {
   if (currentUser.value?.username === username) {
-    return { name: 'perfil' }
+    return { name: ROUTE_NAMES.profile }
   }
-
-  return {
-    name: 'perfil',
-    query: { user: username },
-  }
-}
-
-function updatePendingSet(accountId, shouldAdd) {
-  const next = new Set(followPendingIds.value)
-
-  if (shouldAdd) {
-    next.add(accountId)
-  } else {
-    next.delete(accountId)
-  }
-
-  followPendingIds.value = next
+  return { name: ROUTE_NAMES.profile, query: { user: username } }
 }
 
 async function loadSuggestions() {
@@ -84,24 +67,34 @@ async function loadSuggestions() {
 }
 
 async function handleFollowSuggestion(account) {
-  if (!account || followPendingIds.value.has(account.id)) {
+  if (!account || followsStore.isPending(account.id)) {
     return
   }
 
-  updatePendingSet(account.id, true)
-
   try {
-    await followsService.follow(account.id)
+    await followsStore.follow(account.id)
     railSuggestions.value = railSuggestions.value.filter((item) => item.id !== account.id)
-  } finally {
-    updatePendingSet(account.id, false)
+  } catch {
+    // ignore — pending flag is reset by the store
   }
 }
 
 async function handleLogout() {
-  await logout()
-  router.replace({ name: 'login' })
+  await authStore.logout()
+  router.replace({ name: ROUTE_NAMES.login })
 }
+
+onMounted(() => {
+  if (currentUser.value?.id && !followsStore.hydrated) {
+    followsStore.hydrateFor(currentUser.value.id)
+  }
+})
+
+watch(() => currentUser.value?.id, (id) => {
+  if (id) {
+    followsStore.hydrateFor(id)
+  }
+})
 
 watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: true })
 </script>
@@ -110,7 +103,7 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
   <RouterView v-slot="{ Component }">
     <div class="ig-layout" :class="`is-${contentMode}`">
       <aside class="ig-sidebar">
-        <RouterLink class="ig-brand" :to="{ name: 'feed' }" aria-label="Ir para o feed">
+        <RouterLink class="ig-brand" :to="{ name: ROUTE_NAMES.feed }" aria-label="Ir para o feed">
           <span class="ig-brand__glyph">
             <AppIcon name="instagram" />
           </span>
@@ -120,10 +113,10 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
         <nav class="ig-nav" aria-label="Navegação principal">
           <RouterLink
             v-for="item in navItems"
-            :key="item.name"
+            :key="item.key"
             :to="{ name: item.name }"
             class="ig-nav__link"
-            :class="{ 'is-active': activeNavName === item.name }"
+            :class="{ 'is-active': activeNavKey === item.key }"
             :title="item.label"
           >
             <AppIcon :name="item.icon" />
@@ -133,7 +126,7 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
 
         <div class="ig-sidebar__footer">
           <RouterLink
-            :to="{ name: 'perfil' }"
+            :to="{ name: ROUTE_NAMES.profile }"
             class="ig-sidebar__account"
             title="Abrir seu perfil"
           >
@@ -156,7 +149,7 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
 
       <div class="ig-content">
         <header v-if="isFeedRoute" class="ig-topbar">
-          <RouterLink class="ig-search" :to="{ name: 'descobrir' }">
+          <RouterLink class="ig-search" :to="{ name: ROUTE_NAMES.discover }">
             <AppIcon name="search" />
             <span>Pesquisar perfis</span>
           </RouterLink>
@@ -184,7 +177,7 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
             </div>
           </div>
 
-          <RouterLink class="ig-rail__action" :to="{ name: 'perfil-editar' }">
+          <RouterLink class="ig-rail__action" :to="{ name: ROUTE_NAMES.editProfile }">
             Editar
           </RouterLink>
         </section>
@@ -192,7 +185,7 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
         <section class="ig-rail__suggestions">
           <div class="ig-rail__heading">
             <strong>Sugestões para você</strong>
-            <RouterLink :to="{ name: 'descobrir' }">Ver tudo</RouterLink>
+            <RouterLink :to="{ name: ROUTE_NAMES.discover }">Ver tudo</RouterLink>
           </div>
 
           <ul class="ig-rail__list">
@@ -219,10 +212,10 @@ watch([() => currentUser.value?.id, isFeedRoute], loadSuggestions, { immediate: 
               <button
                 class="ig-rail__follow"
                 type="button"
-                :disabled="followPendingIds.has(account.id)"
+                :disabled="followsStore.isPending(account.id)"
                 @click="handleFollowSuggestion(account)"
               >
-                {{ followPendingIds.has(account.id) ? '...' : 'Seguir' }}
+                {{ followsStore.isPending(account.id) ? '...' : 'Seguir' }}
               </button>
             </li>
           </ul>

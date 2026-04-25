@@ -1,22 +1,25 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import ProfileAvatar from '@/components/profile/ProfileAvatar.vue'
-import { useAuth } from '@/composables/useAuth'
+import PostCommentList from '@/components/feed/PostCommentList.vue'
+import PostCommentForm from '@/components/feed/PostCommentForm.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useFeedStore, normalizePost, normalizeComment } from '@/stores/feed'
 import * as postsService from '@/services/posts.service'
 import * as likesService from '@/services/likes.service'
 import * as commentsService from '@/services/comments.service'
 import { extractErrorMessage } from '@/services/api'
-import { normalizePost, useFeed } from '@/composables/useFeed'
-import { normalizeUser } from '@/stores/profileUtils'
+import { ROUTE_NAMES } from '@/router/routeNames'
+import { formatFullDateTime } from '@/utils/dates'
 
 const COMMENTS_PAGE_SIZE = 10
 
 const route = useRoute()
 const router = useRouter()
-
-const { currentUser } = useAuth()
-const { applyPostPatch } = useFeed()
+const { currentUser } = storeToRefs(useAuthStore())
+const feedStore = useFeedStore()
 
 const post = ref(null)
 const loadError = ref('')
@@ -24,77 +27,40 @@ const isLoading = ref(false)
 const feedbackMessage = ref('')
 
 const comments = ref([])
-const commentsTotal = ref(0)
 const commentsCurrentPage = ref(1)
 const commentsHasMore = ref(false)
 const commentsLoading = ref(false)
-
-const commentText = ref('')
 const isSubmittingComment = ref(false)
 const likePending = ref(false)
 const deletePending = ref(false)
 
-const postId = computed(() =>
-  typeof route.params.postId === 'string' ? route.params.postId.trim() : String(route.params.postId ?? ''),
-)
+const postId = computed(() => {
+  const raw = route.params.postId
+  return typeof raw === 'string' ? raw.trim() : String(raw ?? '')
+})
 
 const isOwner = computed(
   () => Boolean(currentUser.value?.id && post.value?.author.id === currentUser.value.id),
 )
 
 const authorLink = computed(() => {
-  if (!post.value) {
-    return { name: 'perfil' }
+  if (!post.value || currentUser.value?.username === post.value.author.username) {
+    return { name: ROUTE_NAMES.profile }
   }
-  if (currentUser.value?.username === post.value.author.username) {
-    return { name: 'perfil' }
-  }
-  return { name: 'perfil', query: { user: post.value.author.username } }
+  return { name: ROUTE_NAMES.profile, query: { user: post.value.author.username } }
 })
 
-const trimmedComment = computed(() => commentText.value.trim())
 const likesLabel = computed(() => {
   const total = post.value?.likesCount ?? 0
   return `${total} ${total === 1 ? 'curtida' : 'curtidas'}`
 })
+
 const commentsLabel = computed(() => {
   const total = post.value?.commentsCount ?? 0
   return `${total} ${total === 1 ? 'comentário' : 'comentários'}`
 })
-const publishedLabel = computed(() => {
-  if (!post.value?.createdAt) {
-    return ''
-  }
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(post.value.createdAt))
-})
 
-function normalizeComment(raw) {
-  if (!raw || typeof raw !== 'object') {
-    return null
-  }
-  const author = normalizeUser(raw.user) || {
-    id: raw.user_id ?? null,
-    name: 'Usuário',
-    username: 'usuario',
-    email: '',
-    bio: '',
-    avatarUrl: '',
-    colors: ['#f05a28', '#ff9f59'],
-  }
-  return {
-    id: raw.id,
-    body: raw.body ?? '',
-    author,
-    authorId: raw.user_id ?? author.id,
-    createdAt: raw.created_at ?? raw.createdAt ?? null,
-  }
-}
+const publishedLabel = computed(() => formatFullDateTime(post.value?.createdAt))
 
 async function loadPost() {
   if (!postId.value) {
@@ -129,14 +95,10 @@ async function loadComments({ reset = true } = {}) {
     const items = (response.data ?? []).map(normalizeComment).filter(Boolean)
 
     comments.value = reset ? items : [...comments.value, ...items]
-    commentsTotal.value = Number(response.total ?? comments.value.length)
     commentsCurrentPage.value = Number(response.current_page ?? page)
     commentsHasMore.value = Boolean(response.next_page_url)
   } catch (error) {
-    feedbackMessage.value = extractErrorMessage(
-      error,
-      'Não foi possível carregar os comentários.',
-    )
+    feedbackMessage.value = extractErrorMessage(error, 'Não foi possível carregar os comentários.')
   } finally {
     commentsLoading.value = false
   }
@@ -157,7 +119,7 @@ async function handleToggleLike() {
       likedByMe: Boolean(response.liked),
       likesCount: Number(response.likes_count ?? post.value.likesCount),
     }
-    applyPostPatch(post.value.id, {
+    feedStore.applyPostPatch(post.value.id, {
       likedByMe: post.value.likedByMe,
       likesCount: post.value.likesCount,
     })
@@ -169,23 +131,24 @@ async function handleToggleLike() {
   }
 }
 
-async function handleCommentSubmit() {
-  if (!trimmedComment.value || !post.value || isSubmittingComment.value) {
+async function handleSubmitComment(text, reset) {
+  if (!post.value || isSubmittingComment.value) {
     return
   }
 
   isSubmittingComment.value = true
 
   try {
-    const created = await commentsService.create(post.value.id, trimmedComment.value)
+    const created = await commentsService.create(post.value.id, text)
     const normalized = normalizeComment(created)
     if (normalized) {
       comments.value = [normalized, ...comments.value]
-      commentsTotal.value = commentsTotal.value + 1
     }
     post.value = { ...post.value, commentsCount: post.value.commentsCount + 1 }
-    applyPostPatch(post.value.id, (current) => ({ commentsCount: current.commentsCount + 1 }))
-    commentText.value = ''
+    feedStore.applyPostPatch(post.value.id, (current) => ({
+      commentsCount: current.commentsCount + 1,
+    }))
+    reset?.()
     feedbackMessage.value = 'Comentário enviado ao post.'
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível enviar o comentário.')
@@ -195,25 +158,20 @@ async function handleCommentSubmit() {
 }
 
 async function handleDeleteComment(comment) {
-  if (!comment || !currentUser.value) {
+  if (!comment || comment.authorId !== currentUser.value?.id) {
     return
   }
-  if (comment.authorId !== currentUser.value.id) {
-    return
-  }
-  if (typeof window !== 'undefined' && !window.confirm('Deseja realmente apagar este comentário?')) {
+  if (!window.confirm('Deseja realmente apagar este comentário?')) {
     return
   }
 
   try {
     await commentsService.destroy(comment.id)
     comments.value = comments.value.filter((item) => item.id !== comment.id)
-    commentsTotal.value = Math.max(0, commentsTotal.value - 1)
     if (post.value) {
-      post.value = { ...post.value, commentsCount: Math.max(0, post.value.commentsCount - 1) }
-      applyPostPatch(post.value.id, (current) => ({
-        commentsCount: Math.max(0, current.commentsCount - 1),
-      }))
+      const nextCount = Math.max(0, post.value.commentsCount - 1)
+      post.value = { ...post.value, commentsCount: nextCount }
+      feedStore.applyPostPatch(post.value.id, { commentsCount: nextCount })
     }
     feedbackMessage.value = 'Comentário apagado.'
   } catch (error) {
@@ -225,7 +183,7 @@ async function handleDeletePost() {
   if (!post.value || !isOwner.value || deletePending.value) {
     return
   }
-  if (typeof window !== 'undefined' && !window.confirm('Deseja realmente deletar este post?')) {
+  if (!window.confirm('Deseja realmente deletar este post?')) {
     return
   }
 
@@ -233,7 +191,7 @@ async function handleDeletePost() {
 
   try {
     await postsService.destroy(post.value.id)
-    router.replace({ name: 'perfil' })
+    router.replace({ name: ROUTE_NAMES.profile })
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível deletar o post agora.')
   } finally {
@@ -241,26 +199,11 @@ async function handleDeletePost() {
   }
 }
 
-function formatDate(value) {
-  if (!value) {
-    return ''
-  }
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
 watch(
   postId,
   async () => {
     feedbackMessage.value = ''
-    commentText.value = ''
     comments.value = []
-    commentsTotal.value = 0
     commentsCurrentPage.value = 1
     commentsHasMore.value = false
     await loadPost()
@@ -340,7 +283,7 @@ watch(
             {{ post.likedByMe ? 'Descurtir' : 'Curtir post' }}
           </button>
 
-          <RouterLink class="btn btn-outline-secondary" :to="{ name: 'feed' }">
+          <RouterLink class="btn btn-outline-secondary" :to="{ name: ROUTE_NAMES.feed }">
             Voltar para o feed
           </RouterLink>
 
@@ -365,59 +308,18 @@ watch(
             <span class="post-details__comments-meta">{{ commentsLabel }}</span>
           </div>
 
-          <ul v-if="comments.length > 0" class="post-details__comment-list">
-            <li v-for="comment in comments" :key="comment.id">
-              <div class="post-details__comment-meta">
-                <strong>{{ comment.author.name }}</strong>
-                <span>@{{ comment.author.username }}</span>
-              </div>
+          <PostCommentList
+            :comments="comments"
+            :has-more="commentsHasMore"
+            :loading="commentsLoading"
+            @delete-comment="handleDeleteComment"
+            @load-more="loadComments({ reset: false })"
+          />
 
-              <p>{{ comment.body }}</p>
-
-              <div class="post-details__comment-footer">
-                <time :datetime="comment.createdAt">{{ formatDate(comment.createdAt) }}</time>
-                <button
-                  v-if="currentUser?.id === comment.authorId"
-                  type="button"
-                  class="post-details__comment-delete"
-                  @click="handleDeleteComment(comment)"
-                >
-                  Apagar
-                </button>
-              </div>
-            </li>
-          </ul>
-
-          <p v-else class="post-details__empty-comments">
-            Ainda não há comentários. Comece a conversa neste post.
-          </p>
-
-          <button
-            v-if="commentsHasMore"
-            class="post-details__load-more"
-            type="button"
-            :disabled="commentsLoading"
-            @click="loadComments({ reset: false })"
-          >
-            {{ commentsLoading ? 'Carregando...' : 'Carregar mais comentários' }}
-          </button>
-
-          <form class="post-details__comment-form" @submit.prevent="handleCommentSubmit">
-            <textarea
-              v-model="commentText"
-              class="post-details__comment-input"
-              maxlength="2200"
-              rows="3"
-              placeholder="Adicione um comentário"
-            />
-            <button
-              class="post-details__submit"
-              type="submit"
-              :disabled="!trimmedComment || isSubmittingComment"
-            >
-              {{ isSubmittingComment ? 'Enviando...' : 'Enviar comentário' }}
-            </button>
-          </form>
+          <PostCommentForm
+            :submitting="isSubmittingComment"
+            @submit="handleSubmitComment"
+          />
         </section>
       </div>
     </article>
@@ -429,7 +331,7 @@ watch(
       {{ loadError || 'Esse post não existe mais ou foi removido.' }}
       Volte para o feed para continuar navegando.
     </p>
-    <RouterLink class="btn btn-primary align-self-start" :to="{ name: 'feed' }">
+    <RouterLink class="btn btn-primary align-self-start" :to="{ name: ROUTE_NAMES.feed }">
       Ir para o feed
     </RouterLink>
   </section>
@@ -475,52 +377,41 @@ watch(
   padding: 1.25rem;
 }
 
-.post-details__header,
-.post-details__author,
-.post-details__comment-meta,
-.post-details__comment-footer {
+.post-details__header {
   display: flex;
   align-items: center;
-}
-
-.post-details__header {
   justify-content: space-between;
   gap: 1rem;
 }
 
 .post-details__author {
+  display: flex;
+  align-items: center;
   gap: 0.85rem;
   min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.post-details__author-meta,
-.post-details__header-copy,
-.post-details__stats div,
-.post-details__comments-head div,
-.post-details__comment-list li {
+.post-details__author-meta {
   display: grid;
 }
 
-.post-details__author-meta strong,
-.post-details__comment-meta strong {
+.post-details__author-meta strong {
   color: var(--app-text);
 }
 
 .post-details__author-meta span,
 .post-details__header-copy,
 .post-details__comments-meta,
-.post-details__comment-meta span,
-.post-details__comment-list time,
 .post-details__feedback,
-.post-details__empty-comments,
 .post-details__stats span,
 .post-details__missing p {
   color: var(--app-muted);
 }
 
 .post-details__header-copy {
+  display: grid;
   justify-items: end;
   gap: 0.2rem;
   font-size: 0.94rem;
@@ -542,13 +433,11 @@ watch(
 }
 
 .post-details__caption-block p,
-.post-details__comment-list p,
 .post-details__missing h2 {
   margin: 0;
 }
 
 .post-details__caption-block p,
-.post-details__empty-comments,
 .post-details__missing p {
   line-height: 1.7;
 }
@@ -559,6 +448,7 @@ watch(
 }
 
 .post-details__stats div {
+  display: grid;
   gap: 0.22rem;
   padding: 1rem;
   border: 1px solid var(--app-border);
@@ -572,35 +462,21 @@ watch(
   gap: 0.75rem;
 }
 
-.post-details__action,
-.post-details__submit,
-.post-details__load-more {
-  border: 0;
-  border-radius: 999px;
-  font-weight: 800;
-  transition:
-    transform 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease;
-}
-
 .post-details__action {
   padding: 0.75rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
   color: var(--app-text);
+  font-weight: 800;
   background: var(--app-accent-soft);
+  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
 }
 
 .post-details__action.is-active,
 .post-details__action:hover:not(:disabled),
-.post-details__action:focus-visible,
-.post-details__submit:hover:not(:disabled),
-.post-details__submit:focus-visible,
-.post-details__load-more:hover:not(:disabled),
-.post-details__load-more:focus-visible {
+.post-details__action:focus-visible {
   color: #fff;
   background: var(--app-link);
-  box-shadow: none;
   transform: translateY(-1px);
 }
 
@@ -609,7 +485,6 @@ watch(
   gap: 1rem;
   padding: 1.1rem;
   border: 1px solid var(--app-border);
-  background: var(--app-surface);
 }
 
 .post-details__comments-head {
@@ -619,97 +494,15 @@ watch(
   gap: 1rem;
 }
 
+.post-details__comments-head div {
+  display: grid;
+}
+
 .post-details__comments-head h3,
 .post-details__missing h2 {
   margin: 0.2rem 0 0;
   font-size: clamp(1.3rem, 3vw, 1.7rem);
   font-weight: 800;
-}
-
-.post-details__load-more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.8rem;
-  width: 100%;
-  padding: 0.85rem 1rem;
-  color: var(--app-text);
-  background: var(--app-surface-soft);
-}
-
-.post-details__comment-list {
-  display: grid;
-  gap: 0.85rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.post-details__comment-list li {
-  gap: 0.55rem;
-  padding: 1rem;
-  border-radius: 1.1rem;
-  background: var(--app-surface-soft);
-}
-
-.post-details__comment-meta {
-  gap: 0.45rem;
-  flex-wrap: wrap;
-}
-
-.post-details__comment-footer {
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  font-size: 0.9rem;
-}
-
-.post-details__comment-delete {
-  border: 0;
-  background: none;
-  color: var(--app-link);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.post-details__comment-delete:hover {
-  text-decoration: underline;
-}
-
-.post-details__comment-form {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.post-details__comment-input {
-  width: 100%;
-  min-height: 7rem;
-  padding: 0.95rem 1rem;
-  border: 1px solid var(--app-border-strong);
-  border-radius: 1.15rem;
-  color: var(--app-text);
-  resize: vertical;
-  background: var(--app-surface-soft);
-}
-
-.post-details__comment-input:focus-visible {
-  outline: 2px solid rgba(0, 149, 246, 0.2);
-  border-color: rgba(0, 149, 246, 0.45);
-}
-
-.post-details__submit {
-  justify-self: start;
-  min-width: 13rem;
-  padding: 0.85rem 1rem;
-  color: #fff;
-  background: var(--app-link);
-}
-
-.post-details__submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
-  box-shadow: none;
 }
 
 .post-details__feedback {
@@ -751,11 +544,6 @@ watch(
   .post-details__header-copy {
     justify-items: start;
     text-align: left;
-  }
-
-  .post-details__submit {
-    width: 100%;
-    justify-self: stretch;
   }
 }
 </style>

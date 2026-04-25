@@ -5,21 +5,11 @@ import { normalizeUser } from '@/stores/profileUtils'
 
 const TOKEN_STORAGE_KEY = 'instaclone.token'
 
-function canUseStorage() {
-  return typeof window !== 'undefined' && Boolean(window.localStorage)
-}
-
 function readStoredToken() {
-  if (!canUseStorage()) {
-    return ''
-  }
   return localStorage.getItem(TOKEN_STORAGE_KEY) || ''
 }
 
 function writeStoredToken(token) {
-  if (!canUseStorage()) {
-    return
-  }
   if (token) {
     localStorage.setItem(TOKEN_STORAGE_KEY, token)
   } else {
