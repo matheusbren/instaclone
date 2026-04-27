@@ -92,6 +92,26 @@ Serviços disponíveis:
 | [comments.service.js](src/services/comments.service.js) | `GET/POST /posts/:id/comments`, `DELETE /comments/:id` |
 | [follows.service.js](src/services/follows.service.js) | `POST /users/:id/follow`, `DELETE /users/:id/follow`, `GET /users/:id/followers`, `GET /users/:id/following`, `GET /users/:id/is-following` |
 
+### Contrato de Autenticação
+
+As telas de login e cadastro chamam `POST /auth/login` e `POST /auth/register`. Testar `GET /auth/login` no navegador com `200 OK` não valida a integração, porque o frontend não usa esse método.
+
+Esses dois endpoints devem responder JSON com este formato mínimo:
+
+```json
+{
+  "access_token": "jwt-ou-token-de-acesso",
+  "user": {
+    "id": 1,
+    "name": "Nome do usuário",
+    "username": "usuario",
+    "email": "usuario@email.com"
+  }
+}
+```
+
+O frontend valida `access_token`, `user.id` e `user.username`. Se a resposta vier como HTML/texto, sem token, ou com outro nome de campo como `token`, a tela mostra erro de contrato da API.
+
 ## Gerenciamento de Estado
 
 O estado global fica em stores Pinia usados diretamente pelos componentes, normalmente com `storeToRefs` para manter reatividade:
