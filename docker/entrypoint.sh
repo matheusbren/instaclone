@@ -1,11 +1,9 @@
 #!/bin/sh
 set -e
 
-echo "Waiting for MySQL..."
-until mysqladmin ping -h "${DB_HOST}" -u "${DB_USERNAME}" -p"${DB_PASSWORD}" --silent 2>/dev/null; do
-  sleep 2
+until nc -z "${DB_HOST}" "${DB_PORT:-3306}" 2>/dev/null; do
+  sleep 1
 done
-echo "MySQL ready."
 
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     php artisan migrate --force

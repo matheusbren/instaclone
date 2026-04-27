@@ -5,25 +5,18 @@ services:
       dockerfile: Dockerfile
       target: runtime
     ports:
-      - "80:80"
-      - "443:443"
+      - "8000:80"
     environment:
       APP_KEY: ${APP_KEY}
       APP_ENV: local
       APP_DEBUG: "true"
-      APP_URL: http://localhost
+      APP_URL: http://localhost:8000
       DB_HOST: mysql
       DB_PORT: 3306
       DB_DATABASE: ${DB_DATABASE:-instaclone}
       DB_USERNAME: ${DB_USERNAME:-instaclone}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
-      FILESYSTEM_DISK: s3
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      AWS_BUCKET: instaclone
-      AWS_ENDPOINT: http://minio:9000
-      AWS_USE_PATH_STYLE_ENDPOINT: "true"
-      AWS_DEFAULT_REGION: us-east-1
+      FILESYSTEM_DISK: public
       MERCURE_URL: http://localhost/.well-known/mercure
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-supersecret}
     depends_on:
@@ -46,6 +39,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  frontend:
+    build:
+      context: ../instaclone-frontend
+      args:
+        VITE_API_URL: http://localhost:8000/api
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    depends_on:
+      - app
 
   minio:
     image: minio/minio:RELEASE.2025-04-08T15-41-24Z
