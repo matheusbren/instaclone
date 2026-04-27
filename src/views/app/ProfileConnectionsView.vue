@@ -26,7 +26,7 @@ const currentPage = ref(1)
 const hasMore = ref(false)
 
 const selectedUsername = computed(() =>
-  typeof route.query.user === 'string' ? route.query.user.trim().toLowerCase() : '',
+  typeof route.params.username === 'string' ? route.params.username.trim().toLowerCase() : '',
 )
 
 const listType = computed(() => (isConnectionListType(route.params.type) ? route.params.type : ''))
@@ -38,6 +38,18 @@ const isOwnProfile = computed(
 const listTitle = computed(() =>
   listType.value === CONNECTION_LIST_TYPES.followers ? 'Seguidores' : 'Seguindo',
 )
+const listHeading = computed(() => {
+  const isFollowers = listType.value === CONNECTION_LIST_TYPES.followers
+  if (isOwnProfile.value) {
+    return isFollowers ? 'Seus seguidores' : 'Você está seguindo'
+  }
+  if (!profile.value) {
+    return listTitle.value
+  }
+  return isFollowers
+    ? `Seguidores de @${profile.value.username}`
+    : `@${profile.value.username} está seguindo`
+})
 const listDescription = computed(() => {
   if (!profile.value) {
     return ''
@@ -51,7 +63,7 @@ const backRoute = computed(() => {
   if (!profile.value || isOwnProfile.value) {
     return { name: ROUTE_NAMES.profile }
   }
-  return { name: ROUTE_NAMES.profile, query: { user: profile.value.username } }
+  return { name: ROUTE_NAMES.userProfile, params: { username: profile.value.username } }
 })
 
 async function loadProfile() {
@@ -131,7 +143,7 @@ watch(listType, () => {
     <section class="profile-list__hero card border-0">
       <div>
         <span class="profile-list__eyebrow">Rede</span>
-        <h2>{{ listTitle }} de {{ isOwnProfile ? 'você' : `@${profile.username}` }}</h2>
+        <h2>{{ listHeading }}</h2>
         <p>{{ listDescription }}</p>
       </div>
 

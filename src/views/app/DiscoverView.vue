@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AccountCard from '@/components/profile/AccountCard.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +18,9 @@ const hasMore = ref(false)
 const isLoading = ref(false)
 const loadError = ref('')
 const feedbackMessage = ref('')
+const searchQuery = ref('')
+const isSearching = ref(false)
+let searchTimer = null
 
 async function loadPeople({ reset = true } = {}) {
   isLoading.value = true
@@ -38,6 +41,32 @@ async function loadPeople({ reset = true } = {}) {
     isLoading.value = false
   }
 }
+
+async function runSearch(query) {
+  isSearching.value = true
+  loadError.value = ''
+  try {
+    const response = await usersService.search(query, 20)
+    const users = (response.data ?? []).map(normalizeUser).filter(Boolean)
+    people.value = users
+    totalPeople.value = users.length
+    hasMore.value = false
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, 'Não foi possível buscar perfis agora.')
+  } finally {
+    isSearching.value = false
+  }
+}
+
+watch(searchQuery, (value) => {
+  clearTimeout(searchTimer)
+  const trimmed = value.trim()
+  if (!trimmed) {
+    loadPeople({ reset: true })
+    return
+  }
+  searchTimer = setTimeout(() => runSearch(trimmed), 300)
+})
 
 function handleFollowChanged({ account, wasFollowing }) {
   feedbackMessage.value = wasFollowing
@@ -70,6 +99,19 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section class="discover__search card border-0">
+      <label class="discover__search-label" for="discover-search">Buscar perfis</label>
+      <input
+        id="discover-search"
+        v-model="searchQuery"
+        class="discover__search-input"
+        type="search"
+        placeholder="Digite um nome ou @username"
+        autocomplete="off"
+      />
+      <p v-if="isSearching" class="discover__search-status">Buscando...</p>
+    </section>
+
     <p v-if="loadError" class="discover__feedback is-error" role="alert">
       {{ loadError }}
     </p>
@@ -96,7 +138,7 @@ onMounted(async () => {
       <p class="mb-0">Carregando pessoas...</p>
     </section>
 
-    <div v-if="hasMore" class="discover__more">
+    <div v-if="hasMore && !searchQuery.trim()" class="discover__more">
       <button
         class="btn btn-outline-secondary"
         type="button"
@@ -116,10 +158,44 @@ onMounted(async () => {
 }
 
 .discover__hero,
-.discover__empty {
+.discover__empty,
+.discover__search {
   padding: 1.4rem;
   border-radius: 1.75rem;
   background: var(--app-surface);
+}
+
+.discover__search {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.discover__search-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--app-accent-strong);
+}
+
+.discover__search-input {
+  width: 100%;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.85rem;
+  background: var(--app-surface-soft);
+  color: var(--app-text);
+}
+
+.discover__search-input:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: 2px;
+}
+
+.discover__search-status {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 0.85rem;
 }
 
 .discover__hero {

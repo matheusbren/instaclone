@@ -1,5 +1,17 @@
 <script setup>
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 import { ROUTE_NAMES } from '@/router/routeNames'
+
+const { isAuthenticated } = storeToRefs(useAuthStore())
+
+const fallbackRoute = computed(() => ({
+  name: isAuthenticated.value ? ROUTE_NAMES.feed : ROUTE_NAMES.login,
+}))
+const fallbackLabel = computed(() =>
+  isAuthenticated.value ? 'Voltar para o feed' : 'Ir para o login',
+)
 </script>
 
 <template>
@@ -11,8 +23,8 @@ import { ROUTE_NAMES } from '@/router/routeNames'
             <div class="card-body p-4 p-md-5">
               <h2 class="h4 mb-3">Página não encontrada</h2>
               <p class="text-body-secondary mb-4">A rota acessada não existe no InstaClone.</p>
-              <RouterLink class="btn btn-primary" :to="{ name: ROUTE_NAMES.feed }">
-                Voltar para o feed
+              <RouterLink class="btn btn-primary" :to="fallbackRoute">
+                {{ fallbackLabel }}
               </RouterLink>
             </div>
           </section>

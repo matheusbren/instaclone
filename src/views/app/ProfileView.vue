@@ -32,31 +32,38 @@ const loadError = ref('')
 const feedbackMessage = ref('')
 
 const selectedUsername = computed(() =>
-  typeof route.query.user === 'string' ? route.query.user.trim().toLowerCase() : '',
+  typeof route.params.username === 'string' ? route.params.username.trim().toLowerCase() : '',
 )
 
 const isOwnProfile = computed(
   () => Boolean(profile.value && currentUser.value && profile.value.id === currentUser.value.id),
 )
 
-const connectionsQuery = computed(() => {
+const followersRoute = computed(() => {
   if (!profile.value || isOwnProfile.value) {
-    return {}
+    return {
+      name: ROUTE_NAMES.profileConnections,
+      params: { type: CONNECTION_LIST_TYPES.followers },
+    }
   }
-  return { user: profile.value.username }
+  return {
+    name: ROUTE_NAMES.userConnections,
+    params: { username: profile.value.username, type: CONNECTION_LIST_TYPES.followers },
+  }
 })
 
-const followersRoute = computed(() => ({
-  name: ROUTE_NAMES.profileConnections,
-  params: { type: CONNECTION_LIST_TYPES.followers },
-  query: connectionsQuery.value,
-}))
-
-const followingRoute = computed(() => ({
-  name: ROUTE_NAMES.profileConnections,
-  params: { type: CONNECTION_LIST_TYPES.following },
-  query: connectionsQuery.value,
-}))
+const followingRoute = computed(() => {
+  if (!profile.value || isOwnProfile.value) {
+    return {
+      name: ROUTE_NAMES.profileConnections,
+      params: { type: CONNECTION_LIST_TYPES.following },
+    }
+  }
+  return {
+    name: ROUTE_NAMES.userConnections,
+    params: { username: profile.value.username, type: CONNECTION_LIST_TYPES.following },
+  }
+})
 
 async function loadProfile() {
   isLoading.value = true

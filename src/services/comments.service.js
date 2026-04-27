@@ -12,11 +12,6 @@ export async function create(postId, body) {
   return data
 }
 
-export async function update(commentId, body) {
-  const { data } = await api.put(`/comments/${commentId}`, { body })
-  return data
-}
-
 export async function destroy(commentId) {
   const { data } = await api.delete(`/comments/${commentId}`)
   return data

@@ -13,6 +13,7 @@ import * as commentsService from '@/services/comments.service'
 import { extractErrorMessage } from '@/services/api'
 import { ROUTE_NAMES } from '@/router/routeNames'
 import { formatFullDateTime } from '@/utils/dates'
+import { usePostAspect } from '@/composables/usePostAspect'
 
 const COMMENTS_PAGE_SIZE = 10
 
@@ -33,6 +34,10 @@ const commentsLoading = ref(false)
 const isSubmittingComment = ref(false)
 const likePending = ref(false)
 const deletePending = ref(false)
+const pendingDeleteCommentId = ref(null)
+const confirmingDeletePost = ref(false)
+
+const { aspectRatio: imageAspectRatio, handleImageLoad } = usePostAspect()
 
 const postId = computed(() => {
   const raw = route.params.postId
@@ -47,7 +52,7 @@ const authorLink = computed(() => {
   if (!post.value || currentUser.value?.username === post.value.author.username) {
     return { name: ROUTE_NAMES.profile }
   }
-  return { name: ROUTE_NAMES.profile, query: { user: post.value.author.username } }
+  return { name: ROUTE_NAMES.userProfile, params: { username: post.value.author.username } }
 })
 
 const likesLabel = computed(() => {
@@ -157,11 +162,23 @@ async function handleSubmitComment(text, reset) {
   }
 }
 
-async function handleDeleteComment(comment) {
+function requestDeleteComment(comment) {
   if (!comment || comment.authorId !== currentUser.value?.id) {
     return
   }
-  if (!window.confirm('Deseja realmente apagar este comentário?')) {
+  pendingDeleteCommentId.value = comment.id
+}
+
+function cancelDeleteComment() {
+  pendingDeleteCommentId.value = null
+}
+
+async function confirmDeleteComment() {
+  const commentId = pendingDeleteCommentId.value
+  if (!commentId) return
+  const comment = comments.value.find((item) => item.id === commentId)
+  if (!comment || comment.authorId !== currentUser.value?.id) {
+    pendingDeleteCommentId.value = null
     return
   }
 
@@ -176,26 +193,36 @@ async function handleDeleteComment(comment) {
     feedbackMessage.value = 'Comentário apagado.'
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível apagar o comentário.')
+  } finally {
+    pendingDeleteCommentId.value = null
   }
 }
 
-async function handleDeletePost() {
+function requestDeletePost() {
+  if (!post.value || !isOwner.value || deletePending.value) return
+  confirmingDeletePost.value = true
+}
+
+function cancelDeletePost() {
+  confirmingDeletePost.value = false
+}
+
+async function confirmDeletePost() {
   if (!post.value || !isOwner.value || deletePending.value) {
-    return
-  }
-  if (!window.confirm('Deseja realmente deletar este post?')) {
+    confirmingDeletePost.value = false
     return
   }
 
   deletePending.value = true
 
   try {
-    await postsService.destroy(post.value.id)
-    router.replace({ name: ROUTE_NAMES.profile })
+    await feedStore.deletePost(post.value.id)
+    router.replace({ name: ROUTE_NAMES.feed })
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível deletar o post agora.')
   } finally {
     deletePending.value = false
+    confirmingDeletePost.value = false
   }
 }
 
@@ -229,7 +256,13 @@ watch(
 
     <article class="post-details__card card border-0">
       <div class="post-details__media-panel">
-        <img class="post-details__image" :src="post.imageUrl" :alt="post.imageAlt" />
+        <img
+          class="post-details__image"
+          :src="post.imageUrl"
+          :alt="post.imageAlt"
+          :style="{ aspectRatio: imageAspectRatio }"
+          @load="handleImageLoad"
+        />
       </div>
 
       <div class="post-details__content">
@@ -262,12 +295,10 @@ watch(
         <section class="post-details__stats">
           <div>
             <strong>{{ likesLabel }}</strong>
-            <span>interações com a publicação</span>
           </div>
 
           <div>
             <strong>{{ commentsLabel }}</strong>
-            <span>comentários acumulados neste post</span>
           </div>
         </section>
 
@@ -288,14 +319,43 @@ watch(
           </RouterLink>
 
           <button
-            v-if="isOwner"
+            v-if="isOwner && !confirmingDeletePost"
             class="btn btn-outline-danger"
             type="button"
             :disabled="deletePending"
-            @click="handleDeletePost"
+            @click="requestDeletePost"
           >
             {{ deletePending ? 'Deletando...' : 'Deletar post' }}
           </button>
+        </div>
+
+        <div
+          v-if="isOwner && confirmingDeletePost"
+          class="post-details__inline-confirm"
+          role="alertdialog"
+          aria-live="polite"
+        >
+          <p class="post-details__inline-confirm-text">
+            Apagar este post? A ação não pode ser desfeita.
+          </p>
+          <div class="post-details__inline-confirm-actions">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              :disabled="deletePending"
+              @click="cancelDeletePost"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger btn-sm"
+              :disabled="deletePending"
+              @click="confirmDeletePost"
+            >
+              {{ deletePending ? 'Apagando...' : 'Apagar post' }}
+            </button>
+          </div>
         </div>
 
         <section class="post-details__comments card border-0">
@@ -312,7 +372,10 @@ watch(
             :comments="comments"
             :has-more="commentsHasMore"
             :loading="commentsLoading"
-            @delete-comment="handleDeleteComment"
+            :pending-delete-id="pendingDeleteCommentId"
+            @delete-comment="requestDeleteComment"
+            @cancel-delete="cancelDeleteComment"
+            @confirm-delete="confirmDeleteComment"
             @load-more="loadComments({ reset: false })"
           />
 
@@ -353,11 +416,14 @@ watch(
 
 .post-details__card {
   display: grid;
+  container-type: inline-size;
+  container-name: post-details;
 }
 
 .post-details__media-panel {
   position: relative;
-  min-height: 18rem;
+  display: grid;
+  place-items: center;
   background:
     linear-gradient(135deg, rgba(0, 149, 246, 0.14) 0%, rgba(0, 0, 0, 0) 48%),
     var(--app-surface-soft);
@@ -366,9 +432,9 @@ watch(
 .post-details__image {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 80vh;
   object-fit: cover;
-  aspect-ratio: 1 / 1;
 }
 
 .post-details__content {
@@ -462,6 +528,26 @@ watch(
   gap: 0.75rem;
 }
 
+.post-details__inline-confirm {
+  margin-top: 0.85rem;
+  padding: 0.95rem 1.05rem;
+  border: 1px solid rgba(255, 48, 64, 0.32);
+  border-radius: 0.85rem;
+  background: rgba(255, 48, 64, 0.08);
+  color: var(--app-text);
+}
+
+.post-details__inline-confirm-text {
+  margin: 0 0 0.65rem;
+  font-weight: 600;
+}
+
+.post-details__inline-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .post-details__action {
   padding: 0.75rem 1.1rem;
   border: 0;
@@ -520,14 +606,10 @@ watch(
   padding: 1.4rem;
 }
 
-@media (min-width: 992px) {
+@container post-details (min-width: 720px) {
   .post-details__card {
     grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
-    align-items: stretch;
-  }
-
-  .post-details__media-panel {
-    min-height: 100%;
+    align-items: start;
   }
 
   .post-details__content {

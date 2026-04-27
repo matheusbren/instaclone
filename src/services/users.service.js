@@ -19,7 +19,7 @@ export async function uploadAvatar(file) {
   return data
 }
 
-export async function search(query, perPage = 15) {
+export async function search(query, perPage = 20) {
   const { data } = await api.get('/users/search', {
     params: { q: query, per_page: perPage },
   })

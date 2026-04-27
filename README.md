@@ -61,7 +61,7 @@ src/
     feed/             PostCard, lista/form/item de comentários
     layout/           AppIcon
     profile/          AccountCard, avatar, header, cards de resumo e grid
-  composables/        useImageUpload
+  composables/        useImageUpload, usePostAspect
   layouts/            AppLayout (área autenticada), AuthLayout (login/register)
   router/             rotas, guards e constantes de nomes/tipos de rota
   services/           clientes HTTP por domínio
@@ -86,12 +86,11 @@ Serviços disponíveis:
 | --- | --- |
 | [auth.service.js](src/services/auth.service.js) | `POST /auth/login`, `POST /auth/register`, `POST /auth/logout`, `GET /auth/me` |
 | [users.service.js](src/services/users.service.js) | `GET /users/:username`, `PUT /users/me`, `POST /users/me/avatar`, `GET /users/search`, `GET /users/suggestions`, `GET /users/:id/posts` |
-| [posts.service.js](src/services/posts.service.js) | `POST /posts`, `GET /posts/:id`, `PUT /posts/:id`, `DELETE /posts/:id` |
+| [posts.service.js](src/services/posts.service.js) | `POST /posts`, `GET /posts/:id`, `DELETE /posts/:id` |
 | [feed.service.js](src/services/feed.service.js) | `GET /feed` (paginação por cursor) |
-| [likes.service.js](src/services/likes.service.js) | `POST /posts/:id/like`, `DELETE /posts/:id/unlike`, `GET /posts/:id/likes` |
-| [comments.service.js](src/services/comments.service.js) | `GET/POST /posts/:id/comments`, `PUT/DELETE /comments/:id` |
-| [follows.service.js](src/services/follows.service.js) | `POST /users/:id/follow`, `DELETE /users/:id/unfollow`, `GET /users/:id/followers`, `GET /users/:id/following`, `GET /users/:id/is-following` |
-| [notifications.service.js](src/services/notifications.service.js) | `GET /notifications`, `GET /notifications/unread-count`, `PUT /notifications/read` |
+| [likes.service.js](src/services/likes.service.js) | `POST /posts/:id/like`, `DELETE /posts/:id/like` |
+| [comments.service.js](src/services/comments.service.js) | `GET/POST /posts/:id/comments`, `DELETE /comments/:id` |
+| [follows.service.js](src/services/follows.service.js) | `POST /users/:id/follow`, `DELETE /users/:id/follow`, `GET /users/:id/followers`, `GET /users/:id/following`, `GET /users/:id/is-following` |
 
 ## Gerenciamento de Estado
 
@@ -103,16 +102,19 @@ O estado global fica em stores Pinia usados diretamente pelos componentes, norma
 
 Além dos stores, o helper [stores/profileUtils.js](src/stores/profileUtils.js) concentra normalização de usuários, `defaultAuthor()` e constantes de limite de perfil (`PROFILE_*_MAX_LENGTH`).
 
-O composable [useImageUpload](src/composables/useImageUpload.js) concentra seleção de arquivo, preview via blob URL, validação de tipo/tamanho e limpeza do preview para as telas de criação de post e edição de perfil.
+Os composables ficam em [src/composables/](src/composables/):
+
+- [useImageUpload](src/composables/useImageUpload.js) concentra seleção de arquivo, preview via blob URL, validação de tipo/tamanho e limpeza do preview para as telas de criação de post e edição de perfil.
+- [usePostAspect](src/composables/usePostAspect.js) calcula a `aspect-ratio` da imagem do post no `load`, restringindo o valor entre 9/16 e 4/3 — usado por `PostCard` e `PostDetailsView`.
 
 ## Roteamento e Autenticação
 
 As rotas estão definidas em [router/index.js](src/router/index.js), divididas em dois layouts:
 
-- **`AppLayout`** (`meta.requiresAuth`): `/feed`, `/create`, `/discover`, `/posts/:postId`, `/profile`, `/profile/edit`, `/profile/list/:type`.
+- **`AppLayout`** (`meta.requiresAuth`): `/feed`, `/create`, `/discover`, `/posts/:postId`, `/profile`, `/profile/edit`, `/profile/list/:type`, `/users/:username`, `/users/:username/list/:type`.
 - **`AuthLayout`** (`meta.requiresGuest`): `/login`, `/register`.
 
-Todas as views são lazy-loaded com `() => import(...)`, então cada tela vira seu próprio chunk no build; o build atual em `dist/` contém 24 arquivos JavaScript. Os nomes de rotas são centralizados em [router/routeNames.js](src/router/routeNames.js) por `ROUTE_NAMES`; os tipos válidos de lista de conexões ficam em `CONNECTION_LIST_TYPES`. Os nomes internos de rota e os paths usam inglês.
+Todas as views são lazy-loaded com `() => import(...)`, então cada tela vira seu próprio chunk no build; o build atual em `dist/` contém 23 arquivos JavaScript. Os nomes de rotas são centralizados em [router/routeNames.js](src/router/routeNames.js) por `ROUTE_NAMES` (incluindo `userProfile` e `userConnections` para perfis de terceiros); os tipos válidos de lista de conexões ficam em `CONNECTION_LIST_TYPES`. Os nomes internos de rota e os paths usam inglês.
 
 O `beforeEach` global hidrata a sessão na primeira navegação, redireciona para `/login` quando a rota exige autenticação e devolve o usuário logado ao feed caso tente acessar telas de convidado. Rotas desconhecidas caem em [NotFoundView](src/views/NotFoundView.vue).
 
@@ -120,7 +122,7 @@ O `beforeEach` global hidrata a sessão na primeira navegação, redireciona par
 
 - **Feed** — lista posts da rede do usuário com paginação por cursor e botão "Mostrar mais posts". Curtidas e envio de comentários atualizam o store imediatamente.
 - **Criar Post** — tela de upload com preview da imagem, campo de legenda (limite de `POST_CAPTION_MAX_LENGTH = 2200`) e botão de publicar. A imagem é validada no cliente (JPG/PNG/WEBP, até 5 MB) e enviada via `multipart/form-data`; assim que a API confirma a criação, a publicação entra no topo do feed.
-- **Descobrir** — lista sugestões de contas (`GET /users/suggestions`) com cards compartilhados por [AccountCard](src/components/profile/AccountCard.vue) e ação de seguir direto do card via `follows` store.
+- **Descobrir** — lista sugestões de contas (`GET /users/suggestions`) com cards compartilhados por [AccountCard](src/components/profile/AccountCard.vue) e ação de seguir direto do card via `follows` store. Também tem campo de busca com debounce de 300 ms que troca a listagem para `GET /users/search?q=...`.
 - **Detalhes do Post** — a tela individual de post exibe imagem, legenda, autor, data, contagem de curtidas e comentários usando [PostCommentList](src/components/feed/PostCommentList.vue), [PostCommentItem](src/components/feed/PostCommentItem.vue) e [PostCommentForm](src/components/feed/PostCommentForm.vue).
 - **Perfil** — avatar, bio, contadores (posts/seguidores/seguindo), grade de posts do usuário, botão de seguir/deixar de seguir e atalho para editar o próprio perfil, com componentes próprios para header, cards de resumo e grid.
 - **Editar Perfil** — atualiza nome, username, bio (`PUT /users/me`) e foto (`POST /users/me/avatar`) usando `useImageUpload`.

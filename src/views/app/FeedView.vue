@@ -42,6 +42,15 @@ async function handleSubmitComment(payload) {
   }
 }
 
+async function handleDeletePost(postId) {
+  try {
+    await feedStore.deletePost(postId)
+    feedbackMessage.value = 'Post apagado.'
+  } catch (error) {
+    feedbackMessage.value = extractErrorMessage(error, 'Não foi possível apagar o post.')
+  }
+}
+
 async function handleLoadMore() {
   try {
     await feedStore.loadMoreFeed()
@@ -68,6 +77,7 @@ async function handleLoadMore() {
         :post="post"
         @toggle-like="handleToggleLike"
         @submit-comment="handleSubmitComment"
+        @delete-post="handleDeletePost"
       />
     </section>
 

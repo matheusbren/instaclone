@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/layout/AppIcon.vue'
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 import { ROUTE_NAMES } from '@/router/routeNames'
 import { formatDayMonthYear, formatRelative } from '@/utils/dates'
 import { POST_CAPTION_MAX_LENGTH } from '@/stores/feed'
+import { usePostAspect } from '@/composables/usePostAspect'
 
 const props = defineProps({
   post: {
@@ -16,7 +17,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['toggle-like', 'submit-comment'])
+const emit = defineEmits(['toggle-like', 'submit-comment', 'delete-post'])
 
 const { currentUser } = storeToRefs(useAuthStore())
 
@@ -26,15 +27,22 @@ const isOwnPost = computed(
 
 const commentText = ref('')
 
+const { aspectRatio: imageAspectRatio, handleImageLoad } = usePostAspect()
+
 const postLink = computed(() => ({
   name: ROUTE_NAMES.postDetails,
   params: { postId: props.post.id },
 }))
 
-const authorLink = computed(() => ({
-  name: ROUTE_NAMES.profile,
-  query: { user: props.post.author.username },
-}))
+const authorLink = computed(() => {
+  if (currentUser.value?.username === props.post.author.username) {
+    return { name: ROUTE_NAMES.profile }
+  }
+  return {
+    name: ROUTE_NAMES.userProfile,
+    params: { username: props.post.author.username },
+  }
+})
 
 const likeLabel = computed(() => {
   const total = props.post.likesCount ?? 0
@@ -43,9 +51,9 @@ const likeLabel = computed(() => {
 
 const commentLabel = computed(() => {
   const total = props.post.commentsCount ?? 0
-  return total > 0
-    ? `Ver todos os ${total} ${total === 1 ? 'comentário' : 'comentários'}`
-    : 'Seja o primeiro a comentar'
+  if (total === 0) return 'Seja o primeiro a comentar'
+  if (total === 1) return 'Ver 1 comentário'
+  return `Ver todos os ${total} comentários`
 })
 
 const publishedLabel = computed(() => formatDayMonthYear(props.post.createdAt))
@@ -66,6 +74,44 @@ function handleCommentSubmit() {
 
   commentText.value = ''
 }
+
+const menuOpen = ref(false)
+const confirmingDelete = ref(false)
+
+function handleDocumentClick(event) {
+  if (!event.target.closest?.('.feed-post__menu-wrapper')) {
+    menuOpen.value = false
+    confirmingDelete.value = false
+  }
+}
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+  if (!menuOpen.value) confirmingDelete.value = false
+  if (menuOpen.value) document.addEventListener('click', handleDocumentClick)
+  else document.removeEventListener('click', handleDocumentClick)
+}
+
+function requestDelete() {
+  confirmingDelete.value = true
+}
+
+function cancelDelete() {
+  confirmingDelete.value = false
+  menuOpen.value = false
+  document.removeEventListener('click', handleDocumentClick)
+}
+
+function confirmDelete() {
+  emit('delete-post', props.post.id)
+  confirmingDelete.value = false
+  menuOpen.value = false
+  document.removeEventListener('click', handleDocumentClick)
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
 </script>
 
 <template>
@@ -88,14 +134,50 @@ function handleCommentSubmit() {
 
       <div class="feed-post__header-side">
         <time class="feed-post__date" :datetime="post.createdAt">{{ shortPublishedLabel }}</time>
-        <button class="feed-post__menu" type="button" aria-label="Mais opções">
-          <AppIcon name="more" />
-        </button>
+        <div v-if="isOwnPost" class="feed-post__menu-wrapper">
+          <button
+            class="feed-post__menu"
+            type="button"
+            aria-label="Mais opções"
+            :aria-expanded="menuOpen"
+            @click.stop="toggleMenu"
+          >
+            <AppIcon name="more" />
+          </button>
+          <div v-if="menuOpen" class="feed-post__menu-pop" role="menu">
+            <button
+              v-if="!confirmingDelete"
+              type="button"
+              class="feed-post__menu-item feed-post__menu-item--danger"
+              @click="requestDelete"
+            >
+              Apagar post
+            </button>
+            <div v-else class="feed-post__menu-confirm" role="alertdialog">
+              <p>Apagar este post?</p>
+              <div class="feed-post__menu-confirm-actions">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="cancelDelete">
+                  Cancelar
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" @click="confirmDelete">
+                  Apagar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
     <RouterLink :to="postLink" class="feed-post__media-link">
-      <img class="feed-post__media" :src="post.imageUrl" :alt="post.imageAlt" loading="lazy" />
+      <img
+        class="feed-post__media"
+        :src="post.imageUrl"
+        :alt="post.imageAlt"
+        :style="{ aspectRatio: imageAspectRatio }"
+        loading="lazy"
+        @load="handleImageLoad"
+      />
     </RouterLink>
 
     <div class="feed-post__body">
@@ -115,15 +197,7 @@ function handleCommentSubmit() {
           <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Abrir comentários">
             <AppIcon name="comment" />
           </RouterLink>
-
-          <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Abrir detalhes do post">
-            <AppIcon name="share" />
-          </RouterLink>
         </div>
-
-        <RouterLink :to="postLink" class="feed-post__icon-button" aria-label="Salvar post">
-          <AppIcon name="save" />
-        </RouterLink>
       </div>
 
       <p class="feed-post__likes">{{ likeLabel }}</p>
@@ -209,6 +283,10 @@ function handleCommentSubmit() {
   gap: 0.5rem;
 }
 
+.feed-post__menu-wrapper {
+  position: relative;
+}
+
 .feed-post__menu {
   display: grid;
   place-items: center;
@@ -220,6 +298,53 @@ function handleCommentSubmit() {
   background: none;
 }
 
+.feed-post__menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  min-width: 12rem;
+  padding: 0.5rem;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+
+.feed-post__menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: 0.45rem;
+  text-align: left;
+  background: none;
+  color: var(--app-text);
+}
+
+.feed-post__menu-item:hover,
+.feed-post__menu-item:focus-visible {
+  background: var(--app-surface-soft);
+}
+
+.feed-post__menu-item--danger {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
+.feed-post__menu-confirm p {
+  margin: 0 0 0.55rem;
+  padding: 0.25rem 0.25rem 0;
+  font-size: 0.92rem;
+}
+
+.feed-post__menu-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0.25rem;
+}
+
 .feed-post__media-link {
   display: block;
 }
@@ -227,7 +352,6 @@ function handleCommentSubmit() {
 .feed-post__media {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
   object-fit: cover;
   background: var(--app-surface-soft);
 }

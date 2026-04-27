@@ -35,32 +35,35 @@ const accountHandle = computed(() =>
 )
 const accountName = computed(() => currentUser.value?.name || 'Sua conta')
 
-const railSuggestions = ref([])
+const rawSuggestions = ref([])
 const loadingSuggestions = ref(false)
+
+const railSuggestions = computed(() =>
+  rawSuggestions.value.filter((account) => !followsStore.isFollowing(account.id)).slice(0, 5),
+)
 
 function getProfileRoute(username) {
   if (currentUser.value?.username === username) {
     return { name: ROUTE_NAMES.profile }
   }
-  return { name: ROUTE_NAMES.profile, query: { user: username } }
+  return { name: ROUTE_NAMES.userProfile, params: { username } }
 }
 
 async function loadSuggestions() {
   if (!currentUser.value?.id || !isFeedRoute.value) {
-    railSuggestions.value = []
+    rawSuggestions.value = []
     return
   }
 
   loadingSuggestions.value = true
 
   try {
-    const response = await usersService.suggestions(6, 1)
-    railSuggestions.value = (response.data ?? [])
+    const response = await usersService.suggestions(20, 1)
+    rawSuggestions.value = (response.data ?? [])
       .map(normalizeUser)
       .filter((account) => account && account.id !== currentUser.value?.id)
-      .slice(0, 5)
   } catch {
-    railSuggestions.value = []
+    rawSuggestions.value = []
   } finally {
     loadingSuggestions.value = false
   }
@@ -73,7 +76,6 @@ async function handleFollowSuggestion(account) {
 
   try {
     await followsStore.follow(account.id)
-    railSuggestions.value = railSuggestions.value.filter((item) => item.id !== account.id)
   } catch {
     // ignore — pending flag is reset by the store
   }

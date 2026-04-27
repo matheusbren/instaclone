@@ -14,9 +14,13 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  pendingDeleteId: {
+    type: [Number, String, null],
+    default: null,
+  },
 })
 
-defineEmits(['delete-comment', 'load-more'])
+defineEmits(['delete-comment', 'cancel-delete', 'confirm-delete', 'load-more'])
 </script>
 
 <template>
@@ -25,7 +29,10 @@ defineEmits(['delete-comment', 'load-more'])
       v-for="comment in comments"
       :key="comment.id"
       :comment="comment"
+      :is-pending-delete="pendingDeleteId === comment.id"
       @delete="$emit('delete-comment', $event)"
+      @cancel-delete="$emit('cancel-delete')"
+      @confirm-delete="$emit('confirm-delete')"
     />
   </ul>
 

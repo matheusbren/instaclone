@@ -28,7 +28,7 @@ const profileLink = computed(() => {
   if (currentUser.value?.username === props.account.username) {
     return { name: ROUTE_NAMES.profile }
   }
-  return { name: ROUTE_NAMES.profile, query: { user: props.account.username } }
+  return { name: ROUTE_NAMES.userProfile, params: { username: props.account.username } }
 })
 
 async function handleToggle() {

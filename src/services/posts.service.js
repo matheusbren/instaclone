@@ -17,11 +17,6 @@ export async function show(postId) {
   return data
 }
 
-export async function update(postId, payload) {
-  const { data } = await api.put(`/posts/${postId}`, payload)
-  return data
-}
-
 export async function destroy(postId) {
   const { data } = await api.delete(`/posts/${postId}`)
   return data

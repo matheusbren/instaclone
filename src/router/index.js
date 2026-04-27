@@ -60,6 +60,18 @@ const routes = [
         component: () => import('@/views/app/ProfileConnectionsView.vue'),
         meta: { navItem: 'profile' },
       },
+      {
+        path: 'users/:username',
+        name: ROUTE_NAMES.userProfile,
+        component: () => import('@/views/app/ProfileView.vue'),
+        meta: { navItem: 'profile' },
+      },
+      {
+        path: 'users/:username/list/:type',
+        name: ROUTE_NAMES.userConnections,
+        component: () => import('@/views/app/ProfileConnectionsView.vue'),
+        meta: { navItem: 'profile' },
+      },
     ],
   },
   {

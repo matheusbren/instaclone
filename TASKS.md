@@ -13,9 +13,9 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 - [ ] Tema global em `src/assets/styles/theme.css` (importado no `main.js` apos Bootstrap)
 - [ ] Google Fonts carregado por `<link rel="preconnect">` + stylesheet em `index.html`
 - [ ] Cliente axios centralizado em `src/services/api.js`:
-  - baseURL lida de `import.meta.env.VITE_API_URL`
+  - baseURL lida de `import.meta.env.VITE_API_URL`, com fallback para `http://localhost:8000/api`
   - interceptor de request injeta `Authorization: Bearer <token>` quando existe token
-  - interceptor de response trata `401`: limpa token, redireciona para `/login`
+  - interceptor de response trata `401` chamando o handler de unauthorized (que limpa a sessão); o redirect para `/login` é responsabilidade do guard `requiresAuth` na próxima navegação
 - [ ] `.env.example` com `VITE_API_URL=http://localhost:8000/api`
 - [ ] `.dockerignore` excluindo `node_modules`, `dist`, `.env`, mantendo `.env.example`
 
@@ -50,9 +50,9 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 
 ## 4 - Feed (`/feed`)
 
-- [ ] `GET /feed` retorna `{ items: [...], next_cursor: string|null }`
-- [ ] Store `feed` normaliza os posts em um dicionario por id e mantem uma lista ordenada
-- [ ] Actions do store: `fetchFeed`, `loadMoreFeed(cursor)`, `toggleLike(postId)`, `addComment(postId, body)`, `createPost(formData)`
+- [ ] `GET /feed` retorna `{ data: [...], next_cursor: string|null }`
+- [ ] Store `feed` mantem uma lista ordenada de posts normalizados em `feedPosts`, com `feedCursor` e `feedHasNext` controlando a paginacao
+- [ ] Actions do store: `fetchFeed({ reset })`, `loadMoreFeed()`, `toggleLike(post)`, `addComment(postId, body)`, `createPost({ image, caption })`, `deletePost(postId)`, `applyPostPatch(postId, patch)`
 - [ ] `normalizeComment` deve viver em `stores/feed.js`
 - [ ] `defaultAuthor()` deve viver em `stores/profileUtils.js` para evitar duplicar o autor fallback em post/comentario
 - [ ] Botao "carregar mais" visivel enquanto `next_cursor !== null`
@@ -64,7 +64,7 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
   - data relativa (ex.: "ha 2h")
   - contador de comentarios
   - campo inline para adicionar comentario
-- [ ] Curtir: `POST /posts/:id/like`. Descurtir: `DELETE /posts/:id/unlike`. Atualizar contador de forma otimista
+- [ ] Curtir: `POST /posts/:id/like`. Descurtir: `DELETE /posts/:id/like`. Atualizar contador de forma otimista
 - [ ] Comentar inline: `POST /posts/:id/comments` com `{ body }`
 
 ## 5 - Descobrir (`/discover`)
@@ -75,10 +75,11 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 - [ ] Store `follows` deve manter `followingIds` e `pendingIds` como `Set`, sempre trocando por um novo `Set` a cada mutacao para preservar reatividade
 - [ ] Botao "Seguir" / "Seguindo" por card:
   - seguir: `POST /users/:id/follow`
-  - deixar de seguir: `DELETE /users/:id/unfollow`
+  - deixar de seguir: `DELETE /users/:id/follow`
 - [ ] Cards de usuarios devem usar `components/profile/AccountCard.vue`
-- [ ] Clique no card abre `/profile?user=<username>` ou `/profile` se for o proprio
+- [ ] Clique no card abre `/users/:username` (rota nomeada `userProfile`) ou `/profile` se for o proprio
 - [ ] Paginacao por pagina (`?page=<n>`)
+- [ ] Campo de busca com debounce (~300 ms) que troca a listagem para `GET /users/search?q=<termo>`; lista limpa volta a mostrar sugestoes
 
 ## 6 - Criar Post (`/create`)
 
@@ -91,7 +92,7 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 - [ ] `POST /posts` com `FormData` contendo `image` e `caption`
 - [ ] Exibir feedback de sucesso (redirecionar para `/feed`) e mensagens de erro
 
-## 7 - Perfil (`/profile` e `/profile?user=<username>`)
+## 7 - Perfil (`/profile` e `/users/:username`)
 
 - [ ] `GET /users/{username}` resolve o perfil alvo
 - [ ] Em paralelo, carregar:
@@ -102,9 +103,9 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 - [ ] Acoes de seguir/deixar de seguir devem usar o store `follows`
 - [ ] Acoes:
   - seguir: `POST /users/:id/follow`
-  - deixar de seguir: `DELETE /users/:id/unfollow`
+  - deixar de seguir: `DELETE /users/:id/follow`
 - [ ] Botao "Editar perfil" aparece apenas no proprio perfil e leva a `/profile/edit`
-- [ ] Contadores de seguidores e seguindo levam a `/profile/list/followers` e `/profile/list/following` (preservando o `?user=` quando for perfil de terceiros)
+- [ ] Contadores de seguidores e seguindo levam a `/profile/list/followers` e `/profile/list/following` para o proprio perfil, e a `/users/:username/list/(followers|following)` (rota nomeada `userConnections`) para perfis de terceiros
 - [ ] Grid de posts: clicar em um post abre `/posts/:postId`
 - [ ] `ProfileView` deve delegar UI para `ProfileHeader`, `ProfileSummaryCards` e `ProfilePostGrid`
 
@@ -121,11 +122,11 @@ Lista de tarefas para reconstruir o frontend. Cada item descreve comportamento e
 - [ ] Logica de upload/preview/cleanup do avatar deve usar `composables/useImageUpload.js`
 - [ ] Mensagens de erro por campo vindas do backend
 
-## 8 - Listas de Conexao (`/profile/list/:type`)
+## 8 - Listas de Conexao (`/profile/list/:type` e `/users/:username/list/:type`)
 
 - [ ] `:type` aceita `followers` ou `following`
 - [ ] Tipos validos devem vir de `CONNECTION_LIST_TYPES`
-- [ ] Respeita `?user=<username>` para listar conexoes de outro perfil
+- [ ] Rota `userConnections` (`/users/:username/list/:type`) lista conexoes de outro perfil
 - [ ] `GET /users/{id}/followers` e `GET /users/{id}/following` com paginacao por pagina
 - [ ] Cada linha mostra avatar, nome, username e botao de seguir / deixar de seguir
 - [ ] Cada conta deve ser renderizada por `components/profile/AccountCard.vue`
@@ -191,11 +192,12 @@ Estes itens nao fazem parte desta etapa porque mudam o formato do projeto ou exi
 | Posts | POST | `/posts` (multipart) |
 | Posts | GET | `/posts/:id` |
 | Posts | DELETE | `/posts/:id` |
-| Posts | POST | `/posts/:id/like` |
-| Posts | DELETE | `/posts/:id/unlike` |
+| Likes | POST | `/posts/:id/like` |
+| Likes | DELETE | `/posts/:id/like` |
 | Comments | GET | `/posts/:id/comments` |
 | Comments | POST | `/posts/:id/comments` |
 | Comments | DELETE | `/comments/:id` |
+| Users | GET | `/users/search?q=<termo>` |
 | Users | GET | `/users/suggestions` |
 | Users | GET | `/users/:username` |
 | Users | GET | `/users/:id/posts` |
@@ -203,6 +205,6 @@ Estes itens nao fazem parte desta etapa porque mudam o formato do projeto ou exi
 | Users | GET | `/users/:id/following` |
 | Users | GET | `/users/:id/is-following` |
 | Users | POST | `/users/:id/follow` |
-| Users | DELETE | `/users/:id/unfollow` |
+| Users | DELETE | `/users/:id/follow` |
 | Users | PUT | `/users/me` |
 | Users | POST | `/users/me/avatar` (multipart) |

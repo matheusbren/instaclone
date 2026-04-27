@@ -9,9 +9,13 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  isPendingDelete: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-defineEmits(['delete'])
+defineEmits(['delete', 'cancel-delete', 'confirm-delete'])
 
 const { currentUser } = storeToRefs(useAuthStore())
 
@@ -33,13 +37,37 @@ const formattedDate = computed(() => formatShortDateTime(props.comment.createdAt
     <div class="comment-item__footer">
       <time :datetime="comment.createdAt">{{ formattedDate }}</time>
       <button
-        v-if="isAuthor"
+        v-if="isAuthor && !isPendingDelete"
         type="button"
         class="comment-item__delete"
         @click="$emit('delete', comment)"
       >
         Apagar
       </button>
+    </div>
+
+    <div
+      v-if="isAuthor && isPendingDelete"
+      class="comment-item__confirm"
+      role="alertdialog"
+    >
+      <span>Apagar este comentário?</span>
+      <div class="comment-item__confirm-actions">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="$emit('cancel-delete')"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-danger"
+          @click="$emit('confirm-delete')"
+        >
+          Apagar
+        </button>
+      </div>
     </div>
   </li>
 </template>
@@ -93,5 +121,24 @@ const formattedDate = computed(() => formatShortDateTime(props.comment.createdAt
 
 .comment-item__delete:hover {
   text-decoration: underline;
+}
+
+.comment-item__confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(255, 48, 64, 0.32);
+  border-radius: 0.7rem;
+  background: rgba(255, 48, 64, 0.08);
+  color: var(--app-text);
+  font-size: 0.9rem;
+}
+
+.comment-item__confirm-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
 }
 </style>
