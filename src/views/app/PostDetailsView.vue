@@ -100,8 +100,8 @@ async function loadComments({ reset = true } = {}) {
     const items = (response.data ?? []).map(normalizeComment).filter(Boolean)
 
     comments.value = reset ? items : [...comments.value, ...items]
-    commentsCurrentPage.value = Number(response.current_page ?? page)
-    commentsHasMore.value = Boolean(response.next_page_url)
+    commentsCurrentPage.value = Number(response.meta?.current_page ?? page)
+    commentsHasMore.value = Boolean(response.links?.next)
   } catch (error) {
     feedbackMessage.value = extractErrorMessage(error, 'Não foi possível carregar os comentários.')
   } finally {

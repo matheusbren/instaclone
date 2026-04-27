@@ -13,22 +13,23 @@ export function normalizePost(rawPost) {
     return null
   }
 
-  const author = normalizeUser(rawPost.user) || defaultAuthor(rawPost.user_id)
-  const caption = rawPost.caption ?? ''
+  const post = rawPost.data ?? rawPost
+  const author = normalizeUser(post.user) || defaultAuthor(post.user_id)
+  const caption = post.caption ?? ''
 
   return {
-    id: rawPost.id,
+    id: post.id,
     author,
     caption,
-    imageUrl: rawPost.image_url ?? rawPost.imageUrl ?? '',
+    imageUrl: post.image_url ?? post.imageUrl ?? '',
     imageAlt: caption
       ? `Publicação de @${author.username}: ${caption.slice(0, 96)}`
       : `Publicação de @${author.username}.`,
-    likesCount: Number(rawPost.likes_count ?? rawPost.likesCount ?? 0),
-    commentsCount: Number(rawPost.comments_count ?? rawPost.commentsCount ?? 0),
-    likedByMe: Boolean(rawPost.liked_by_me ?? rawPost.likedByMe ?? false),
-    createdAt: rawPost.created_at ?? rawPost.createdAt ?? null,
-    updatedAt: rawPost.updated_at ?? rawPost.updatedAt ?? null,
+    likesCount: Number(post.likes_count ?? post.likesCount ?? 0),
+    commentsCount: Number(post.comments_count ?? post.commentsCount ?? 0),
+    likedByMe: Boolean(post.liked_by_me ?? post.likedByMe ?? false),
+    createdAt: post.created_at ?? post.createdAt ?? null,
+    updatedAt: post.updated_at ?? post.updatedAt ?? null,
   }
 }
 
@@ -37,14 +38,15 @@ export function normalizeComment(rawComment) {
     return null
   }
 
-  const author = normalizeUser(rawComment.user) || defaultAuthor(rawComment.user_id)
+  const comment = rawComment.data ?? rawComment
+  const author = normalizeUser(comment.user) || defaultAuthor(comment.user_id)
 
   return {
-    id: rawComment.id,
-    body: rawComment.body ?? '',
+    id: comment.id,
+    body: comment.body ?? '',
     author,
-    authorId: rawComment.user_id ?? author.id,
-    createdAt: rawComment.created_at ?? rawComment.createdAt ?? null,
+    authorId: comment.user_id ?? author.id,
+    createdAt: comment.created_at ?? comment.createdAt ?? null,
   }
 }
 
@@ -67,7 +69,7 @@ export const useFeedStore = defineStore('feed', {
       try {
         const cursor = reset ? null : this.feedCursor
         const response = await feedService.getFeed({ cursor, perPage: FEED_PAGE_SIZE })
-        const normalized = (response.data ?? []).map(normalizePost).filter(Boolean)
+        const normalized = (response.items ?? []).map(normalizePost).filter(Boolean)
 
         this.feedPosts = reset ? normalized : [...this.feedPosts, ...normalized]
         this.feedCursor = response.next_cursor ?? null

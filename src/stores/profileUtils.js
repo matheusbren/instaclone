@@ -25,11 +25,12 @@ export function getProfileColors(seed) {
   return AUTHOR_PALETTES[hashString(seed) % AUTHOR_PALETTES.length]
 }
 
-export function normalizeUser(user) {
-  if (!user || typeof user !== 'object') {
+export function normalizeUser(raw) {
+  if (!raw || typeof raw !== 'object') {
     return null
   }
 
+  const user = raw.data ?? raw
   const seed = user.username || user.email || String(user.id ?? '')
 
   return {
